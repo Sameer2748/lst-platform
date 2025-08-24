@@ -49,69 +49,74 @@ app.post('/helius', async (req, res) => {
     const VAULT_ADDRESS = "5fxqKBcGKhx4zs4zdqocYuJxYNk4sCYJ4yXKNyyDebZP"; // your vault
 
     try {
-        // Loop through all tokenTransfers in case multiple transfers in one tx
-        console.log("Helius webhook body:", req.body);
-        const deposits = req.body.tokenTransfers.filter(
-            (t:any) => t.toUserAccount === VAULT_ADDRESS
-        );
+        const transactions = Array.isArray(req.body) ? req.body : [req.body];
 
-        if (deposits.length === 0) {
-            return res.status(200).send("No deposits to vault, ignoring");
-        }
+        for (const tx of transactions) {
+            // Use nativeTransfers for SOL deposits
+            const deposits = (tx.nativeTransfers ?? []).filter(
+                (t: any) => t.toUserAccount === VAULT_ADDRESS
+            );
 
-        for (const deposit of deposits) {
-            const { fromUserAccount, toUserAccount, mint, tokenAmount } = deposit;
-
-            // Find pending transaction created earlier
-            const txRecord = await db.transaction.findFirst({
-                where: { user: fromUserAccount, amountReceived: tokenAmount, status: 'pending' },
-                orderBy: { createdAt: 'desc' }
-            });
-
-            if (!txRecord) {
-                console.warn(`No matching transaction for ${fromUserAccount} of amount ${tokenAmount}`);
-                continue; // skip this deposit
+            if (deposits.length === 0) {
+                console.log("No deposits in this transaction, skipping.");
+                continue;
             }
 
-            try {
-                // Mint sSOL & update Vault and transaction
-                const mintTxSig = await mintTokens(fromUserAccount, toUserAccount, tokenAmount);
+            for (const deposit of deposits) {
+                const { fromUserAccount, toUserAccount, lamports } = deposit;
+                const amountSOL = lamports / 1e9; // convert lamports to SOL
 
-                await db.$transaction([
-                    db.vault.update({
-                        where: { id: "1" },
-                        data: { totalSOL: { increment: tokenAmount }, totalSSOL: { increment: tokenAmount } }
-                    }),
-                    db.transaction.update({
-                        where: { id: txRecord.id },
-                        data: { status: 'completed', txSignature: mintTxSig }
-                    })
-                ]);
-
-                console.log(`Deposit processed for ${fromUserAccount} amount ${tokenAmount}`);
-
-            } catch (mintErr) {
-                console.error("Mint failed", mintErr);
-
-                // Refund SOL if minting fails
-                const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), fromUserAccount, tokenAmount);
-                const refundTx = new Transaction().add(refundIx);
-                const txSig = await sendAndConfirmTransaction(connection, refundTx, [platformWallet]);
-
-                await db.transaction.update({
-                    where: { id: txRecord.id },
-                    data: { status: 'refunded', txSignature: txSig }
+                // Find pending transaction in DB
+                const txRecord = await db.transaction.findFirst({
+                    where: { user: fromUserAccount, amountReceived: amountSOL, status: 'pending' },
+                    orderBy: { createdAt: 'desc' }
                 });
 
-                console.log(`Deposit refunded to ${fromUserAccount}`);
+                if (!txRecord) {
+                    console.warn(`No matching transaction for ${fromUserAccount} amount ${amountSOL}`);
+                    continue;
+                }
+
+                try {
+                    // Mint sSOL & update Vault and transaction
+                    const mintTxSig = await mintTokens(fromUserAccount, toUserAccount, amountSOL);
+
+                    await db.$transaction([
+                        db.vault.update({
+                            where: { id: "1" },
+                            data: { totalSOL: { increment: amountSOL }, totalSSOL: { increment: amountSOL } }
+                        }),
+                        db.transaction.update({
+                            where: { id: txRecord.id },
+                            data: { status: 'completed', txSignature: mintTxSig }
+                        })
+                    ]);
+
+                    console.log(`Deposit processed for ${fromUserAccount} amount ${amountSOL}`);
+
+                } catch (mintErr) {
+                    console.error("Mint failed", mintErr);
+
+                    // Refund SOL if minting fails
+                    const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), fromUserAccount, amountSOL);
+                    const refundTx = new Transaction().add(refundIx);
+                    const txSig = await sendAndConfirmTransaction(connection, refundTx, [platformWallet]);
+
+                    await db.transaction.update({
+                        where: { id: txRecord.id },
+                        data: { status: 'refunded', txSignature: txSig }
+                    });
+
+                    console.log(`Deposit refunded to ${fromUserAccount}`);
+                }
             }
         }
 
-        res.send("Deposit processing complete");
+        res.send("Webhook processed successfully");
 
     } catch (err) {
         console.error(err);
-        res.status(500).send("Internal error");
+        res.status(500).send("Internal server error");
     }
 });
 
