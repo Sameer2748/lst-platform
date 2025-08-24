@@ -5,11 +5,12 @@ import { PrismaClient } from '@prisma/client';
 import { loadPlatformWallet } from "./wallet";
 import { Connection, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import cors from "cors"
-const app = express();
-app.use(cors());
-app.use(express.json());
-const db = new PrismaClient();
 
+
+const app = express();
+app.use(express.json());
+app.use(cors);
+const db = new PrismaClient();
 
 app.post('/stake-init', async (req, res) => {
     const { userWallet, amount } = req.body;
@@ -49,87 +50,70 @@ app.post('/helius', async (req, res) => {
     const VAULT_ADDRESS = "DTceCyCi4ypRbHqjo4S7huHQr3j9NAcNf4wHkvN5A1cT"; // your vault
 
     try {
-        const transactions = Array.isArray(req.body) ? req.body : [req.body];
+        // Loop through all tokenTransfers in case multiple transfers in one tx
+        const deposits = req.body.tokenTransfers.filter(
+            (t:any) => t.toUserAccount === VAULT_ADDRESS
+        );
 
-        // Fetch the first vault row once
-        let vault = await db.vault.findFirst();
-        if (!vault) {
-            vault = await db.vault.create({
-                data: { totalSOL: 0, totalSSOL: 0 }
-            });
+        if (deposits.length === 0) {
+            return res.status(200).send("No deposits to vault, ignoring");
         }
 
-        for (const tx of transactions) {
-            console.log(tx);
+        for (const deposit of deposits) {
+            const { fromUserAccount, toUserAccount, mint, tokenAmount } = deposit;
 
-            const deposits = (tx.nativeTransfers ?? []).filter((t: any) => {
-                console.log("Checking native transfer:", {
-                    toUserAccount: t.toUserAccount,
-                    VAULT_ADDRESS
-                });
-                return t.toUserAccount === VAULT_ADDRESS;
+            // Find pending transaction created earlier
+            const txRecord = await db.transaction.findFirst({
+                where: { user: fromUserAccount, amountReceived: tokenAmount, status: 'pending' },
+                orderBy: { createdAt: 'desc' }
             });
 
-            if (deposits.length === 0) {
-                console.log("No deposits to vault in this transaction, skipping.");
-                continue;
+            if (!txRecord) {
+                console.warn(`No matching transaction for ${fromUserAccount} of amount ${tokenAmount}`);
+                continue; // skip this deposit
             }
 
-            for (const deposit of deposits) {
-                const { fromUserAccount, toUserAccount, amount } = deposit;
-                const amountSOL = amount / 1e9; // lamports → SOL
+            try {
+                // Mint sSOL & update Vault and transaction
+                const mintTxSig = await mintTokens(fromUserAccount, toUserAccount, tokenAmount);
 
-                const txRecord = await db.transaction.findFirst({
-                    where: { user: fromUserAccount, amountReceived: amountSOL, status: 'pending' },
-                    orderBy: { createdAt: 'desc' }
-                });
-
-                if (!txRecord) {
-                    console.warn(`No matching transaction for ${fromUserAccount} of amount ${amountSOL}`);
-                    continue;
-                }
-
-                try {
-                    const mintTxSig = await mintTokens(fromUserAccount, toUserAccount, amountSOL);
-
-                    await db.$transaction([
-                        db.vault.update({
-                            where: { id: vault.id },
-                            data: { totalSOL: { increment: amountSOL }, totalSSOL: { increment: amountSOL } }
-                        }),
-                        db.transaction.update({
-                            where: { id: txRecord.id },
-                            data: { status: 'completed', txSignature: mintTxSig }
-                        })
-                    ]);
-
-                    console.log(`Deposit processed for ${fromUserAccount} amount ${amountSOL}`);
-
-                } catch (mintErr) {
-                    console.error("Mint failed", mintErr);
-
-                    const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), fromUserAccount, amountSOL);
-                    const refundTx = new Transaction().add(refundIx);
-                    const txSig = await sendAndConfirmTransaction(connection, refundTx, [platformWallet]);
-
-                    await db.transaction.update({
+                await db.$transaction([
+                    db.vault.update({
+                        where: { id: "1" },
+                        data: { totalSOL: { increment: tokenAmount }, totalSSOL: { increment: tokenAmount } }
+                    }),
+                    db.transaction.update({
                         where: { id: txRecord.id },
-                        data: { status: 'refunded', txSignature: txSig }
-                    });
+                        data: { status: 'completed', txSignature: mintTxSig }
+                    })
+                ]);
 
-                    console.log(`Deposit refunded to ${fromUserAccount}`);
-                }
+                console.log(`Deposit processed for ${fromUserAccount} amount ${tokenAmount}`);
+
+            } catch (mintErr) {
+                console.error("Mint failed", mintErr);
+
+                // Refund SOL if minting fails
+                const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), fromUserAccount, tokenAmount);
+                const refundTx = new Transaction().add(refundIx);
+                const txSig = await sendAndConfirmTransaction(connection, refundTx, [platformWallet]);
+
+                await db.transaction.update({
+                    where: { id: txRecord.id },
+                    data: { status: 'refunded', txSignature: txSig }
+                });
+
+                console.log(`Deposit refunded to ${fromUserAccount}`);
             }
         }
 
-        res.send("Webhook processed successfully");
+        res.send("Deposit processing complete");
 
     } catch (err) {
         console.error(err);
         res.status(500).send("Internal error");
     }
 });
-
 
 
 // UNSTAKE
