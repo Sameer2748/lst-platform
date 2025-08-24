@@ -133,46 +133,62 @@ app.post('/helius', async (req, res) => {
 
 
 // UNSTAKE
+// UNSTAKE - Updated with proper error handling
 app.post('/unstake', async (req, res) => {
     const { userWallet, amount, signedBurnTx } = req.body;
     const connection = new Connection(process.env.RPC_URL!, "confirmed");
 
-    // Ensure Vault record exists
-    let vault = await db.vault.findFirst();
-    if (!vault) {
-        vault = await db.vault.create({ data: {} });
-    }
-
-    // 1️⃣ Return partially signed transaction if frontend hasn't signed burn yet
-    if (!signedBurnTx) {
-        const burnTxn = await burnTokens(userWallet, process.env.STAKED_TOKEN_MINT!, amount);
-        const platformWallet = loadPlatformWallet();
-        const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), userWallet, amount);
-        burnTxn.add(refundIx);
-
-        const serializedTx = burnTxn.serialize({ requireAllSignatures: false });
-        return res.send({ tx: serializedTx.toString("base64") });
-    }
-
-    // 2️⃣ If frontend sent signed burn txn, finalize and submit
-    const platformWallet = loadPlatformWallet();
-    const tx = Transaction.from(Buffer.from(signedBurnTx, "base64"));
-    tx.partialSign(platformWallet);
-
-    const txSig = await sendAndConfirmTransaction(connection, tx, [platformWallet]);
-
-    // Update Vault totals atomically after successful unstake
-    await db.vault.update({
-        where: { id: vault.id },
-        data: {
-            totalSOL: { decrement: amount },
-            totalSSOL: { decrement: amount }
+    try {
+        // Ensure Vault record exists
+        let vault = await db.vault.findFirst();
+        if (!vault) {
+            vault = await db.vault.create({ data: {} });
         }
-    });
 
-    res.send({ success: true, txSig });
+        // 1️⃣ Return partially signed transaction if frontend hasn't signed burn yet
+        if (!signedBurnTx) {
+            try {
+                const burnTxn = await burnTokens(userWallet, process.env.STAKED_TOKEN_MINT!, amount);
+                const platformWallet = loadPlatformWallet();
+                const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), userWallet, amount);
+                burnTxn.add(refundIx);
+
+                const serializedTx = burnTxn.serialize({ requireAllSignatures: false });
+                return res.send({ tx: serializedTx.toString("base64") });
+            } catch (error) {
+                console.error('Error creating burn transaction:', error);
+                return res.status(500).send({ error: 'Failed to create burn transaction' });
+            }
+        }
+
+        // 2️⃣ If frontend sent signed burn txn, finalize and submit
+        try {
+            const platformWallet = loadPlatformWallet();
+            const tx = Transaction.from(Buffer.from(signedBurnTx, "base64"));
+            tx.partialSign(platformWallet);
+
+            const txSig = await sendAndConfirmTransaction(connection, tx, [platformWallet]);
+
+            // Update Vault totals atomically after successful unstake
+            await db.vault.update({
+                where: { id: vault.id },
+                data: {
+                    totalSOL: { decrement: amount },
+                    totalSSOL: { decrement: amount }
+                }
+            });
+
+            res.send({ success: true, txSig });
+        } catch (error) {
+            console.error('Error finalizing unstake transaction:', error);
+            return res.status(500).send({ error: 'Failed to finalize unstake transaction' });
+        }
+
+    } catch (error) {
+        console.error('Unstake endpoint error:', error);
+        res.status(500).send({ error: 'Internal server error' });
+    }
 });
-
 // STATUS CHECK
 app.get('/transactions/status/:id', async (req, res) => {
     const { id } = req.params;
