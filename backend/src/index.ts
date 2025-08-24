@@ -134,42 +134,97 @@ app.post('/helius', async (req, res) => {
 
 // UNSTAKE
 // UNSTAKE - Updated with proper error handling
+// UNSTAKE - With detailed logging
 app.post('/unstake', async (req, res) => {
+    console.log('🚀 UNSTAKE REQUEST STARTED');
+    console.log('Request body:', req.body);
+    
     const { userWallet, amount, signedBurnTx } = req.body;
     const connection = new Connection(process.env.RPC_URL!, "confirmed");
 
+    console.log(`📝 Parameters: userWallet=${userWallet}, amount=${amount}, hasSignedTx=${!!signedBurnTx}`);
+
     try {
-        // Ensure Vault record exists
+        console.log('🏦 Checking vault record...');
         let vault = await db.vault.findFirst();
         if (!vault) {
+            console.log('⚠️ No vault found, creating new one...');
             vault = await db.vault.create({ data: {} });
+            console.log('✅ New vault created with ID:', vault.id);
+        } else {
+            console.log('✅ Vault found with ID:', vault.id);
         }
 
-        // 1️⃣ Return partially signed transaction if frontend hasn't signed burn yet
+        // 1️⃣ Create unsigned transaction
         if (!signedBurnTx) {
+            console.log('📋 STEP 1: Creating unsigned transaction...');
+            
             try {
+                console.log('🔥 Creating burn transaction...');
                 const burnTxn = await burnTokens(userWallet, process.env.STAKED_TOKEN_MINT!, amount);
+                console.log('✅ Burn transaction created successfully');
+
+                console.log('💰 Loading platform wallet...');
                 const platformWallet = loadPlatformWallet();
-                const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), userWallet, amount);
+                console.log('✅ Platform wallet loaded:', platformWallet.publicKey.toBase58());
+
+                console.log('💸 Creating refund instruction...');
+                const refundIx = await sendNativeTokens(
+                    platformWallet.publicKey.toBase58(), // FROM platform/vault wallet
+                    userWallet, // TO user
+                    amount
+                );
+                console.log('✅ Refund instruction created');
+
+                console.log('🔧 Adding refund instruction to transaction...');
                 burnTxn.add(refundIx);
 
+                console.log('📦 Serializing transaction...');
                 const serializedTx = burnTxn.serialize({ requireAllSignatures: false });
+                console.log('✅ Transaction serialized, length:', serializedTx.length);
+
+                console.log('🎯 STEP 1 COMPLETE: Returning unsigned transaction to frontend');
                 return res.send({ tx: serializedTx.toString("base64") });
-            } catch (error) {
-                console.error('Error creating burn transaction:', error);
+                
+            } catch (error:any) {
+                console.error('❌ ERROR in Step 1:', error);
+                console.error('Error details:', error.message);
+                console.error('Error stack:', error.stack);
                 return res.status(500).send({ error: 'Failed to create burn transaction' });
             }
         }
 
-        // 2️⃣ If frontend sent signed burn txn, finalize and submit
+        // 2️⃣ User has signed, now add platform signature and submit
+        console.log('📋 STEP 2: Processing signed transaction...');
+        
         try {
+            console.log('💰 Loading platform wallet for signing...');
             const platformWallet = loadPlatformWallet();
+            console.log('✅ Platform wallet loaded:', platformWallet.publicKey.toBase58());
+
+            console.log('📦 Deserializing signed transaction...');
             const tx = Transaction.from(Buffer.from(signedBurnTx, "base64"));
+            console.log('✅ Transaction deserialized');
+            
+            console.log('🔍 Transaction info before platform signing:');
+            console.log('  - Fee payer:', tx.feePayer?.toBase58());
+            console.log('  - Recent blockhash:', tx.recentBlockhash);
+            console.log('  - Number of instructions:', tx.instructions.length);
+            console.log('  - Signatures count:', tx.signatures.length);
+
+            console.log('✍️ Adding platform wallet signature...');
             tx.partialSign(platformWallet);
+            console.log('✅ Platform wallet signature added');
+            
+            console.log('🔍 Transaction info after platform signing:');
+            console.log('  - Signatures count:', tx.signatures.length);
+            console.log('  - All signatures present:', tx.signatures.every(sig => sig.signature !== null));
 
+            console.log('🚀 Submitting transaction to network...');
             const txSig = await sendAndConfirmTransaction(connection, tx, [platformWallet]);
+            console.log('✅ Transaction submitted successfully! Signature:', txSig);
 
-            // Update Vault totals atomically after successful unstake
+            console.log('🏦 Updating vault totals...');
             await db.vault.update({
                 where: { id: vault.id },
                 data: {
@@ -177,18 +232,46 @@ app.post('/unstake', async (req, res) => {
                     totalSSOL: { decrement: amount }
                 }
             });
+            console.log('✅ Vault totals updated');
 
+            console.log('🎯 STEP 2 COMPLETE: Unstake successful!');
             res.send({ success: true, txSig });
-        } catch (error) {
-            console.error('Error finalizing unstake transaction:', error);
+            
+        } catch (error:any) {
+            console.error('❌ ERROR in Step 2:', error);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+            
+            // Additional debugging for transaction errors
+            if (error.message.includes('Signature verification failed')) {
+                console.error('🔍 SIGNATURE DEBUG INFO:');
+                try {
+                    const tx = Transaction.from(Buffer.from(signedBurnTx, "base64"));
+                    console.error('  - Transaction fee payer:', tx.feePayer?.toBase58());
+                    console.error('  - Transaction signatures:', tx.signatures.map(s => ({
+                        publicKey: s.publicKey.toBase58(),
+                        hasSignature: !!s.signature
+                    })));
+                    console.error('  - Instructions requiring signatures:', tx.instructions.map((ix, i) => ({
+                        instruction: i,
+                        signers: ix.keys.filter(k => k.isSigner).map(k => k.pubkey.toBase58())
+                    })));
+                } catch (debugError:any) {
+                    console.error('  - Failed to debug transaction:', debugError.message);
+                }
+            }
+            
             return res.status(500).send({ error: 'Failed to finalize unstake transaction' });
         }
 
-    } catch (error) {
-        console.error('Unstake endpoint error:', error);
+    } catch (error:any) {
+        console.error('❌ CRITICAL ERROR in unstake endpoint:', error);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
         res.status(500).send({ error: 'Internal server error' });
     }
 });
+
 // STATUS CHECK
 app.get('/transactions/status/:id', async (req, res) => {
     const { id } = req.params;
