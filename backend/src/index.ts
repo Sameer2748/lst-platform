@@ -46,7 +46,7 @@ app.post('/stake-init', async (req, res) => {
 app.post('/helius', async (req, res) => {
     const connection = new Connection(process.env.RPC_URL!, "confirmed");
     const platformWallet = loadPlatformWallet();
-    const VAULT_ADDRESS = "5fxqKBcGKhx4zs4zdqocYuJxYNk4sCYJ4yXKNyyDebZP"; // your vault
+    const VAULT_ADDRESS = "DTceCyCi4ypRbHqjo4S7huHQr3j9NAcNf4wHkvN5A1cT"; // your vault
 
     try {
         // Helius may send an array of transactions
