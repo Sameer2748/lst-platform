@@ -236,8 +236,15 @@ app.post('/unstake', async (req, res) => {
 
             // No need to add more signatures - they're all there!
             console.log('🚀 Submitting fully signed transaction to network...');
-            const txSig = await sendAndConfirmTransaction(connection, tx, []);
+            // Use sendRawTransaction instead of sendAndConfirmTransaction
+            const rawTx = tx.serialize();
+            const txSig = await connection.sendRawTransaction(rawTx, {
+                skipPreflight: false,
+                preflightCommitment: "confirmed",
+            });
+            await connection.confirmTransaction(txSig, "confirmed");
             console.log('✅ Transaction submitted successfully! Signature:', txSig);
+            
 
             console.log('🏦 Updating vault totals...');
             await db.vault.update({
