@@ -49,15 +49,19 @@ app.post('/helius', async (req, res) => {
     const VAULT_ADDRESS = "DTceCyCi4ypRbHqjo4S7huHQr3j9NAcNf4wHkvN5A1cT"; // your vault
 
     try {
-        // Helius may send an array of transactions
-
         const transactions = Array.isArray(req.body) ? req.body : [req.body];
+
+        // Fetch the first vault row once
+        let vault = await db.vault.findFirst();
+        if (!vault) {
+            vault = await db.vault.create({
+                data: { totalSOL: 0, totalSSOL: 0 }
+            });
+        }
 
         for (const tx of transactions) {
             console.log(tx);
 
-            // Use nativeTransfers for SOL deposits
-            // Use nativeTransfers for SOL deposits
             const deposits = (tx.nativeTransfers ?? []).filter((t: any) => {
                 console.log("Checking native transfer:", {
                     toUserAccount: t.toUserAccount,
@@ -65,7 +69,6 @@ app.post('/helius', async (req, res) => {
                 });
                 return t.toUserAccount === VAULT_ADDRESS;
             });
-
 
             if (deposits.length === 0) {
                 console.log("No deposits to vault in this transaction, skipping.");
@@ -76,7 +79,6 @@ app.post('/helius', async (req, res) => {
                 const { fromUserAccount, toUserAccount, amount } = deposit;
                 const amountSOL = amount / 1e9; // lamports → SOL
 
-                // Find pending transaction in DB
                 const txRecord = await db.transaction.findFirst({
                     where: { user: fromUserAccount, amountReceived: amountSOL, status: 'pending' },
                     orderBy: { createdAt: 'desc' }
@@ -88,12 +90,11 @@ app.post('/helius', async (req, res) => {
                 }
 
                 try {
-                    // Mint sSOL & update Vault and transaction
                     const mintTxSig = await mintTokens(fromUserAccount, toUserAccount, amountSOL);
 
                     await db.$transaction([
                         db.vault.update({
-                            where: { id: "1" },
+                            where: { id: vault.id },
                             data: { totalSOL: { increment: amountSOL }, totalSSOL: { increment: amountSOL } }
                         }),
                         db.transaction.update({
@@ -107,7 +108,6 @@ app.post('/helius', async (req, res) => {
                 } catch (mintErr) {
                     console.error("Mint failed", mintErr);
 
-                    // Refund SOL if minting fails
                     const refundIx = await sendNativeTokens(platformWallet.publicKey.toBase58(), fromUserAccount, amountSOL);
                     const refundTx = new Transaction().add(refundIx);
                     const txSig = await sendAndConfirmTransaction(connection, refundTx, [platformWallet]);
