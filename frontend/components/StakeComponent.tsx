@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
-import { ChevronDown, ArrowRightIcon, CheckCircle, AlertCircle, Clock, XCircle } from "lucide-react";
+import { ChevronDown, ArrowRightIcon, CheckCircle, AlertCircle, Clock, XCircle, ArrowDownIcon } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios"
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -421,22 +421,22 @@ const StakeComponent = () => {
 
     if (!publicKey) {
         return (
-            <div className="w-full h-[60vh] flex items-center justify-center text-gray-400 text-xl">
-                Connect your wallet to see SOL balance.
+            <div className="w-full h-[60vh] flex items-center justify-center text-gray-400 text-xl px-4">
+                <p className="text-center">Connect your wallet to see SOL balance.</p>
             </div>
         );
     }
 
     if (loading || solBalance === null) {
         return (
-            <div className="w-full h-[60vh] flex items-center justify-center text-gray-500 text-xl animate-pulse">
-                Loading SOL balance...
+            <div className="w-full h-[60vh] flex items-center justify-center text-gray-500 text-xl animate-pulse px-4">
+                <p className="text-center">Loading SOL balance...</p>
             </div>
         );
     }
 
     return (
-        <div className="pt-16">
+        <div className="pt-16 px-4 md:px-0">
             {/* Status Popup */}
             {showStatusPopup && (
                 <StatusPopup
@@ -447,117 +447,213 @@ const StakeComponent = () => {
                 />
             )}
 
-            {/* Your staking UI */}
-            <div className="flex justify-between items-start ">
-                <h1 className="text-5xl font-bold text-black font-stretch-condensed">Get SamSOL</h1>
-                <div className="text-right">
+            {/* Header - Responsive layout */}
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 md:gap-0">
+                <h1 className="text-4xl md:text-5xl font-bold text-black font-stretch-condensed text-center md:text-left">Get SamSOL</h1>
+                <div className="text-center md:text-right">
                     <p className="text-gray-500 text-sm">APY</p>
-                    <p className="text-4xl font-bold text-purple-500">6.92%</p>
+                    <p className="text-3xl md:text-4xl font-bold text-purple-500">6.92%</p>
                 </div>
             </div>
 
-            <div className="w-full grid grid-cols-2 relative gap-4 mt-12">
-                {/* Left - You're staking */}
-                <div className="w-[97%] h-[155px] bg-white rounded-3xl px-3 py-4">
-                    <div className="flex justify-between text-black p-2">
-                        <h1 className="text-xl font-semibold">You're staking</h1>
-                        <div className="flex justify-center items-center gap-2">
-                            <p className="text-sm text-gray-500">{solBalance.toFixed(4)} SOL</p>
-                            <button
-                                onClick={handleUseMax}
-                                className="text-purple-600 text-sm font-medium hover:text-purple-700"
-                            >
-                                Use Max
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Amount Input */}
-                    <div className="flex items-center justify-between px-2 mt-4">
-                        <div className="relative">
-                            <div className="flex text-black items-center gap-2 rounded-xl py-2">
-                                <img className="rounded-full w-10 h-10 " src={solImageUrl} alt="samsol" />
-                                <span className="font-bold text-3xl">SOL</span>
+            {/* Main staking interface - Different layouts for mobile and desktop */}
+            <div className="w-full mt-8 md:mt-12">
+                {/* Desktop Layout (hidden on mobile) */}
+                <div className="hidden md:grid md:grid-cols-2 relative gap-4">
+                    {/* Left - You're staking */}
+                    <div className="w-[97%] h-[155px] bg-white rounded-3xl px-3 py-4">
+                        <div className="flex justify-between text-black p-2">
+                            <h1 className="text-xl font-semibold">You're staking</h1>
+                            <div className="flex justify-center items-center gap-2">
+                                <p className="text-sm text-gray-500">{solBalance.toFixed(4)} SOL</p>
+                                <button
+                                    onClick={handleUseMax}
+                                    className="text-purple-600 text-sm font-medium hover:text-purple-700"
+                                >
+                                    Use Max
+                                </button>
                             </div>
                         </div>
 
-                        <div className="text-right text-gray-400">
-                            <input
-                                type="number"
-                                value={inputAmount}
-                                onChange={(e) => handleInputChange(e.target.value)}
-                                className={`text-4xl font-bold text-right bg-transparent border-2 ${inputError ? "border-red-400" : "border-transparent"
-                                    } outline-none w-86 rounded-lg p-1 transition-colors`}
-                                placeholder="0.0"
-                            />
+                        {/* Amount Input */}
+                        <div className="flex items-center justify-between px-2 mt-4">
+                            <div className="relative">
+                                <div className="flex text-black items-center gap-2 rounded-xl py-2">
+                                    <img className="rounded-full w-10 h-10 " src={solImageUrl} alt="samsol" />
+                                    <span className="font-bold text-3xl">SOL</span>
+                                </div>
+                            </div>
+
+                            <div className="text-right text-gray-400">
+                                <input
+                                    type="number"
+                                    value={inputAmount}
+                                    onChange={(e) => handleInputChange(e.target.value)}
+                                    className={`text-4xl font-bold text-right bg-transparent border-2 ${inputError ? "border-red-400" : "border-transparent"
+                                        } outline-none md:w-44 lg:w-46 xl:w-86 rounded-lg p-1 transition-colors`}
+                                    placeholder="0.0"
+                                />
+                            </div>
+                        </div>
+                        {inputError && (
+                            <p className="text-sm text-right text-red-500 px-2">Amount cannot be more than balance</p>
+                        )}
+                    </div>
+
+                    {/* Right - To Receive */}
+                    <div className="w-[97%] h-[155px] bg-white rounded-3xl px-3 py-4 justify-self-end">
+                        <div className="flex justify-between text-black p-2">
+                            <h1 className="text-xl font-semibold">To Receive</h1>
+                            <div className="flex justify-center items-center gap-2">
+                                <button className="text-gray-600 text-sm font-medium hover:text-purple-700">
+                                    0% Price Impact
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between px-2 mt-4">
+                            <div className="relative">
+                                <div className="flex text-black items-center gap-2 rounded-xl py-2">
+                                    <img className="rounded-full w-10 h-10 " src={samsolImageUrl} alt="Sam" />
+                                    <span className="font-bold text-3xl">Sam</span>
+                                </div>
+                            </div>
+
+                            <div className="text-right text-gray-400">
+                                <input
+                                    type="number"
+                                    value={(parseFloat(inputAmount) || 0)}
+                                    className="text-4xl font-bold text-right bg-transparent border-none outline-none   md:w-44 lg:w-46 xl:w-86"
+                                    placeholder="0.0"
+                                    disabled
+                                />
+                            </div>
                         </div>
                     </div>
-                            {
-                                inputError &&
-                                <p className="text-sm text-right text-red-500">Amount cannot be more than balance</p>
-                            }
+
+                    {/* Middle Arrow */}
+                    <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+                        <div className="w-[20px] h-[20px] rounded">
+                            <ArrowRightIcon color="#c17bff" />
+                        </div>
+                    </div>
                 </div>
 
-                {/* Right - To Receive */}
-                <div className=" w-[97%] h-[155px] bg-white rounded-3xl px-3 py-4 justify-self-end">
-                    <div className="flex justify-between text-black p-2">
-                        <h1 className="text-xl font-semibold">To Receive</h1>
-                        <div className="flex justify-center items-center gap-2">
+                {/* Mobile Layout (hidden on desktop) */}
+                <div className="md:hidden flex flex-col gap-6">
+                    {/* You're staking - Mobile */}
+                    <div className="w-full bg-white rounded-3xl px-4 py-6">
+                        <div className="flex justify-between text-black mb-4">
+                            <h1 className="text-lg font-semibold">You're staking</h1>
+                            <div className="flex justify-center items-center gap-2">
+                                <p className="text-sm text-gray-500">{solBalance.toFixed(4)} SOL</p>
+                                <button
+                                    onClick={handleUseMax}
+                                    className="text-purple-600 text-sm font-medium hover:text-purple-700"
+                                >
+                                    Use Max
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div className="flex text-black items-center gap-3">
+                                <img className="rounded-full w-12 h-12" src={solImageUrl} alt="sol" />
+                                <span className="font-bold text-2xl">SOL</span>
+                            </div>
+
+                            <div className="text-right">
+                                <input
+                                    type="number"
+                                    value={inputAmount}
+                                    onChange={(e) => handleInputChange(e.target.value)}
+                                    className={`text-2xl font-bold text-right bg-transparent border-2 ${inputError ? "border-red-400" : "border-transparent"
+                                        } outline-none w-32 rounded-lg p-2 transition-colors text-gray-700`}
+                                    placeholder="0.0"
+                                />
+                            </div>
+                        </div>
+                        {inputError && (
+                            <p className="text-sm text-right text-red-500 mt-2">Amount cannot be more than balance</p>
+                        )}
+                    </div>
+
+                    {/* Arrow Down for Mobile */}
+                    <div className="flex justify-center">
+                        <div className="w-8 h-8 flex items-center justify-center">
+                            <ArrowDownIcon color="#c17bff" size={24} />
+                        </div>
+                    </div>
+
+                    {/* To Receive - Mobile */}
+                    <div className="w-full bg-white rounded-3xl px-4 py-6">
+                        <div className="flex justify-between text-black mb-4">
+                            <h1 className="text-lg font-semibold">To Receive</h1>
                             <button className="text-gray-600 text-sm font-medium hover:text-purple-700">
                                 0% Price Impact
                             </button>
                         </div>
-                    </div>
 
-                    <div className="flex items-center justify-between px-2 mt-4">
-                        <div className="relative">
-                            <div className="flex text-black items-center gap-2 rounded-xl py-2">
-                                    <img className="rounded-full w-10 h-10 " src={samsolImageUrl} alt="Sam" />
-                                <span className="font-bold text-3xl">Sam</span>
+                        <div className="flex items-center justify-between">
+                            <div className="flex text-black items-center gap-3">
+                                <img className="rounded-full w-12 h-12" src={samsolImageUrl} alt="Sam" />
+                                <span className="font-bold text-2xl">Sam</span>
+                            </div>
+
+                            <div className="text-right">
+                                <input
+                                    type="number"
+                                    value={(parseFloat(inputAmount) || 0)}
+                                    className="text-2xl font-bold text-right bg-transparent border-none outline-none w-42 text-gray-700"
+                                    placeholder="0.0"
+                                    disabled
+                                />
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div className="text-right text-gray-400">
-                            <input
-                                type="number"
-                                value={(parseFloat(inputAmount) || 0)}
-                                className="text-4xl font-bold text-right bg-transparent border-none outline-none w-76"
-                                placeholder="0.0"
-                                disabled
-                            />
+                {/* Bottom section - Responsive */}
+                <div className="w-full mt-8">
+                    {/* Desktop layout for bottom section */}
+                    <div className="hidden md:grid md:grid-cols-2 relative gap-4">
+                        <div className="w-[97%] h-[155px] rounded-3xl px-3 py-4"></div>
+                        <div className="w-[97%] h-auto rounded-3xl px-3 py-4 justify-self-end">
+                            <button 
+                                onClick={handleStake} 
+                                disabled={inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0} 
+                                className={`w-full h-12 rounded-3xl text-white text-md cursor-pointer text-semibold ${
+                                    inputError === true || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
+                                        ? "bg-purple-400 text-black" 
+                                        : "bg-purple-500 hover:bg-purple-600"
+                                } transition-colors`}
+                            >
+                                {stakeStarted ? "Processing..." : "Convert to Sam"}
+                            </button>
+                            <div className="flex justify-between items-center text-black pt-4 px-2">
+                                <p className="text-gray-500 text-sm">1 Sam</p>
+                                <p className="text-sm">~1 SOL</p>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Middle Arrow */}
-                <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-                    <div className="w-[20px] h-[20px] rounded">
-                        <ArrowRightIcon color="#c17bff" />
-                    </div>
-                </div>
-            </div>
-
-            <div className="w-full grid grid-cols-2 relative gap-4 mt-8">
-                {/* Left (first half) */}
-                <div className="w-[97%] h-[155px] rounded-3xl px-3 py-4">
-                </div>
-
-                {/* Right (third div, other half) */}
-                <div className=" w-[97%] h-auto rounded-3xl px-3 py-4 justify-self-end">
-                    <button 
-                        onClick={handleStake} 
-                        disabled={inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0} 
-                        className={`w-full h-12 rounded-3xl text-white text-md cursor-pointer text-semibold ${
-                            inputError === true || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
-                                ? "bg-purple-400 text-black" 
-                                : "bg-purple-500 hover:bg-purple-600"
-                        } transition-colors`}
-                    >
-                        {stakeStarted ? "Processing..." : "Convert to Sam"}
-                    </button>
-                    <div className=" flex justify-between items-center text-black pt-4 px-2">
-                        <p className="text-gray-500 text-sm ">1 Sam</p>
-                        <p className="text-sm">~1 SOL</p>
+                    {/* Mobile layout for bottom section */}
+                    <div className="md:hidden">
+                        <button 
+                            onClick={handleStake} 
+                            disabled={inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0} 
+                            className={`w-full h-14 rounded-3xl text-white text-lg font-semibold ${
+                                inputError === true || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
+                                    ? "bg-purple-400 text-black" 
+                                    : "bg-purple-500 hover:bg-purple-600"
+                            } transition-colors`}
+                        >
+                            {stakeStarted ? "Processing..." : "Convert to Sam"}
+                        </button>
+                        <div className="flex justify-between items-center text-black pt-4 px-2">
+                            <p className="text-gray-500 text-sm">1 Sam</p>
+                            <p className="text-sm">~1 SOL</p>
+                        </div>
                     </div>
                 </div>
             </div>
