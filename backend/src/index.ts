@@ -62,6 +62,9 @@ app.post('/helius', async (req, res) => {
         for (const deposit of deposits) {
             const { fromUserAccount, toUserAccount, mint, tokenAmount } = deposit;
 
+//              fromUserAccount: '5fxqKBcGKhx4zs4zdqocYuJxYNk4sCYJ4yXKNyyDebZP',
+//              toUserAccount: 'DTceCyCi4ypRbHqjo4S7huHQr3j9NAcNf4wHkvN5A1cT'
+
             // Find pending transaction created earlier
             const txRecord = await db.transaction.findFirst({
                 where: { user: fromUserAccount, amountReceived: tokenAmount, status: 'pending' },
@@ -75,7 +78,7 @@ app.post('/helius', async (req, res) => {
 
             try {
                 // Mint sSOL & update Vault and transaction
-                const mintTxSig = await mintTokens(fromUserAccount, toUserAccount, tokenAmount);
+                const mintTxSig = await mintTokens(toUserAccount, fromUserAccount, tokenAmount);
 
                 await db.$transaction([
                     db.vault.update({
