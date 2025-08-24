@@ -50,9 +50,12 @@ app.post('/helius', async (req, res) => {
 
     try {
         // Helius may send an array of transactions
+        
         const transactions = Array.isArray(req.body) ? req.body : [req.body];
 
         for (const tx of transactions) {
+            console.log(tx);
+            
             // Use nativeTransfers for SOL deposits
             const deposits = (tx.nativeTransfers ?? []).filter(
                 (t: any) => t.toUserAccount === VAULT_ADDRESS
