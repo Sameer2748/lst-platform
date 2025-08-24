@@ -9,6 +9,8 @@ const app = express();
 app.use(express.json());
 const db = new PrismaClient();
 
+app.use(cors());
+
 app.post('/stake-init', async (req, res) => {
     const { userWallet, amount } = req.body;
 
