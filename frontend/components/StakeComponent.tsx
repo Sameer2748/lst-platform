@@ -1,29 +1,12 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
-import { ChevronDown, ArrowRightIcon, CheckCircle, AlertCircle, Clock, XCircle, ArrowDownIcon } from "lucide-react";
+import {  ArrowRightIcon, CheckCircle, AlertCircle, Clock, XCircle, ArrowDownIcon } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios"
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { mplTokenMetadata, fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
-import { publicKey as umiPk } from "@metaplex-foundation/umi";
+import Image from "next/image";
 
-// Define the interface for the token details
-interface TokenDetail {
-  tokenAccount: string;
-  mint: string;
-  amount: bigint;
-  decimals: number;
-  uiAmount: number | null;
-  owner: string;
-  onchainName: string | null;
-  onchainSymbol: string | null;
-  metadataUri: string | null;
-  image: string | null;
-  description: string | null;
-}
 
 // Transaction status types
 type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled' | 'processing';
@@ -117,7 +100,7 @@ const StatusPopup: React.FC<StatusPopupProps> = ({ status, txnId, amount, onClos
 const StakeComponent = () => {
     const { publicKey, signTransaction } = useWallet();
     const [solBalance, setSolBalance] = useState<number | null>(null);
-    const [samsolDetail, setSamSolDetail] = useState<TokenDetail | null>(null);
+    // const [samsolDetail, setSamSolDetail] = useState<TokenDetail | null>(null);
     const [loading, setLoading] = useState(false);
     const [inputAmount, setInputAmount] = useState('');
     const [inputError, setInputError] = useState(false);
@@ -129,10 +112,10 @@ const StakeComponent = () => {
     const [currentStatus, setCurrentStatus] = useState<TransactionStatus>('pending');
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
-    const connection = new Connection(
+    const connection = useMemo(() => new Connection(
         process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
         "confirmed"
-    );
+    ), []);
 
     const vaultKey = new PublicKey(process.env.PLATFORM_WALLET! || "DTceCyCi4ypRbHqjo4S7huHQr3j9NAcNf4wHkvN5A1cT")
     const Backend_url = process.env.BACKEND_URL! || "https://lst-backend.100xsam.store";
@@ -140,132 +123,132 @@ const StakeComponent = () => {
     const solImageUrl = "https://imgs.search.brave.com/YRcgd3-E4u7oewRc-ZSSbJTG3hRm20spgyUM-1BYYeU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/YnJhbmRmZXRjaC5p/by9pZGUwTlV1VEhP/L3cvNDAwL2gvNDAw/L3RoZW1lL2Rhcmsv/aWNvbi5qcGVnP2M9/MWJ4aWQ2NE11cDdh/Y3pld1NBWU1YJnQ9/MTY2NzY0NDU5NjQ2/NQ"
 
     // Fetch SOL balance
-    const fetchSol = async () => {
+    const fetchSol = useCallback(async () => {
         setLoading(true);
         try {
-            const balance = await connection.getBalance(publicKey);
+            const balance = await connection.getBalance(publicKey!);
             setSolBalance(balance / LAMPORTS_PER_SOL);
         } catch (err) {
             console.error("Error fetching SOL balance:", err);
         }
         setLoading(false);
-    };
-    const fetchSamSol = async () => {
-        if (!publicKey) {
-          console.error('Wallet not connected');
-          return;
-        }
+    }, [publicKey,connection]);
+    // const fetchSamSol = async () => {
+    //     if (!publicKey) {
+    //       console.error('Wallet not connected');
+    //       return;
+    //     }
       
-        // Replace this with the actual SAMSOL token mint address
-        const SAMSOL_MINT_ADDRESS = "5fp4btmfcwqhmoxf8TJc4Zj7rgRafJJi8KwLu743kVuZ";
+    //     // Replace this with the actual SAMSOL token mint address
+    //     const SAMSOL_MINT_ADDRESS = "5fp4btmfcwqhmoxf8TJc4Zj7rgRafJJi8KwLu743kVuZ";
         
-        try {
-          const connection = new Connection(
-            process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
-            "confirmed"
-          );
+    //     try {
+    //       const connection = new Connection(
+    //         process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
+    //         "confirmed"
+    //       );
       
-          // Get token accounts for this specific mint
-          const resp = await connection.getParsedTokenAccountsByOwner(
-            publicKey,
-            { 
-              mint: new PublicKey(SAMSOL_MINT_ADDRESS)
-            },
-            "confirmed"
-          );
+    //       // Get token accounts for this specific mint
+    //       const resp = await connection.getParsedTokenAccountsByOwner(
+    //         publicKey,
+    //         { 
+    //           mint: new PublicKey(SAMSOL_MINT_ADDRESS)
+    //         },
+    //         "confirmed"
+    //       );
       
-          if (resp.value.length === 0) {
-            console.log('No SAMSOL tokens found in wallet');
-            setSamSolDetail(null);
-            return;
-          }
+    //       if (resp.value.length === 0) {
+    //         console.log('No SAMSOL tokens found in wallet');
+    //         setSamSolDetail(null);
+    //         return;
+    //       }
       
-          // Get the first (usually only) token account for this mint
-          const tokenAccount = resp.value[0];
-          const info = tokenAccount.account.data.parsed.info;
+    //       // Get the first (usually only) token account for this mint
+    //       const tokenAccount = resp.value[0];
+    //       const info = tokenAccount.account.data.parsed.info;
           
           
-          const rawTokenData = {
-            tokenAccount: tokenAccount.pubkey.toBase58(),
-            mint: info.mint as string,
-            amount: BigInt(info.tokenAmount.amount as string),
-            decimals: info.tokenAmount.decimals as number,
-            uiAmount: info.tokenAmount.uiAmount as number | null,
-            owner: info.owner as string,
-          };
+    //       const rawTokenData = {
+    //         tokenAccount: tokenAccount.pubkey.toBase58(),
+    //         mint: info.mint as string,
+    //         amount: BigInt(info.tokenAmount.amount as string),
+    //         decimals: info.tokenAmount.decimals as number,
+    //         uiAmount: info.tokenAmount.uiAmount as number | null,
+    //         owner: info.owner as string,
+    //       };
       
-          // Only proceed if there's a positive balance
-          if (rawTokenData.amount <= BigInt(0)) {
-            console.log('SAMSOL token balance is zero');
-            setSamSolDetail(null);
-            return;
-          }
+    //       // Only proceed if there's a positive balance
+    //       if (rawTokenData.amount <= BigInt(0)) {
+    //         console.log('SAMSOL token balance is zero');
+    //         setSamSolDetail(null);
+    //         return;
+    //       }
       
-          // Create UMI instance for metadata fetching
-          const umi = createUmi(
-            process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com"
-          ).use(mplTokenMetadata());
+    //       // Create UMI instance for metadata fetching
+    //       const umi = createUmi(
+    //         process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com"
+    //       ).use(mplTokenMetadata());
       
-          try {
-            // Fetch token metadata
-            const asset = await fetchDigitalAsset(umi, umiPk(SAMSOL_MINT_ADDRESS));
-            const onchainName = asset.metadata.name;
-            const onchainSymbol = asset.metadata.symbol;
-            const uri = asset.metadata.uri;
+    //       try {
+    //         // Fetch token metadata
+    //         const asset = await fetchDigitalAsset(umi, umiPk(SAMSOL_MINT_ADDRESS));
+    //         const onchainName = asset.metadata.name;
+    //         const onchainSymbol = asset.metadata.symbol;
+    //         const uri = asset.metadata.uri;
       
-            // Fetch off-chain metadata if URI exists
-            let offchain: any = null;
-            if (uri && /^https?:\/\//i.test(uri)) {
-              try {
-                const res = await fetch(uri);
-                if (res.ok) {
-                  offchain = await res.json();
-                }
-              } catch (error) {
-                console.error('Error fetching off-chain metadata:', error);
-              }
-            }
+    //         // Fetch off-chain metadata if URI exists
+    //         let offchain: any = null;
+    //         if (uri && /^https?:\/\//i.test(uri)) {
+    //           try {
+    //             const res = await fetch(uri);
+    //             if (res.ok) {
+    //               offchain = await res.json();
+    //             }
+    //           } catch (error) {
+    //             console.error('Error fetching off-chain metadata:', error);
+    //           }
+    //         }
       
-            // Combine all token details
-            const tokenDetail: TokenDetail = {
-              ...rawTokenData,
-              onchainName,
-              onchainSymbol,
-              metadataUri: uri || null,
-              image: offchain?.image ?? null,
-              description: offchain?.description ?? null,
-            };
+    //         // Combine all token details
+    //         const tokenDetail: TokenDetail = {
+    //           ...rawTokenData,
+    //           onchainName,
+    //           onchainSymbol,
+    //           metadataUri: uri || null,
+    //           image: offchain?.image ?? null,
+    //           description: offchain?.description ?? null,
+    //         };
       
-            setSamSolDetail(tokenDetail);
-            console.log('SAMSOL token details:', tokenDetail);
+    //         setSamSolDetail(tokenDetail);
+    //         console.log('SAMSOL token details:', tokenDetail);
       
-          } catch (metadataError) {
-            console.error('Error fetching metadata:', metadataError);
+    //       } catch (metadataError) {
+    //         console.error('Error fetching metadata:', metadataError);
             
-            // Set token details without metadata
-            const tokenDetail: TokenDetail = {
-              ...rawTokenData,
-              onchainName: null,
-              onchainSymbol: null,
-              metadataUri: null,
-              image: null,
-              description: null,
-            };
+    //         // Set token details without metadata
+    //         const tokenDetail: TokenDetail = {
+    //           ...rawTokenData,
+    //           onchainName: null,
+    //           onchainSymbol: null,
+    //           metadataUri: null,
+    //           image: null,
+    //           description: null,
+    //         };
       
-            setSamSolDetail(tokenDetail);
-          }
+    //         setSamSolDetail(tokenDetail);
+    //       }
       
-        } catch (error) {
-          console.error('Error fetching SAMSOL token:', error);
-          setSamSolDetail(null);
-        }
-      };
+    //     } catch (error) {
+    //       console.error('Error fetching SAMSOL token:', error);
+    //       setSamSolDetail(null);
+    //     }
+    //   };
     useEffect(() => {
         if (!publicKey) return;
         fetchSol();
-        fetchSamSol()
+        // fetchSamSol()
         
-    }, [publicKey]);
+    }, [publicKey, fetchSol]);
 
     // Cleanup polling interval on unmount
     useEffect(() => {
@@ -463,7 +446,7 @@ const StakeComponent = () => {
                     {/* Left - You're staking */}
                     <div className="w-[97%] h-[155px] bg-white rounded-3xl px-3 py-4">
                         <div className="flex justify-between text-black p-2">
-                            <h1 className="text-xl font-semibold">You're staking</h1>
+                            <h1 className="text-xl font-semibold">You&apos;re staking</h1>
                             <div className="flex justify-center items-center gap-2">
                                 <p className="text-sm text-gray-500">{solBalance.toFixed(4)} SOL</p>
                                 <button
@@ -479,7 +462,7 @@ const StakeComponent = () => {
                         <div className="flex items-center justify-between px-2 mt-4">
                             <div className="relative">
                                 <div className="flex text-black items-center gap-2 rounded-xl py-2">
-                                    <img className="rounded-full w-10 h-10 " src={solImageUrl} alt="samsol" />
+                                    <Image className="rounded-full w-10 h-10 " src={solImageUrl} alt="samsol" />
                                     <span className="font-bold text-3xl">SOL</span>
                                 </div>
                             </div>
@@ -514,7 +497,7 @@ const StakeComponent = () => {
                         <div className="flex items-center justify-between px-2 mt-4">
                             <div className="relative">
                                 <div className="flex text-black items-center gap-2 rounded-xl py-2">
-                                    <img className="rounded-full w-10 h-10 " src={samsolImageUrl} alt="Sam" />
+                                    <Image className="rounded-full w-10 h-10 " src={samsolImageUrl} alt="Sam" />
                                     <span className="font-bold text-3xl">Sam</span>
                                 </div>
                             </div>
@@ -544,7 +527,7 @@ const StakeComponent = () => {
                     {/* You're staking - Mobile */}
                     <div className="w-full bg-white rounded-3xl px-4 py-6">
                         <div className="flex justify-between text-black mb-4">
-                            <h1 className="text-lg font-semibold">You're staking</h1>
+                            <h1 className="text-lg font-semibold">You&apos;re staking</h1>
                             <div className="flex justify-center items-center gap-2">
                                 <p className="text-sm text-gray-500">{solBalance.toFixed(4)} SOL</p>
                                 <button
@@ -558,7 +541,7 @@ const StakeComponent = () => {
 
                         <div className="flex items-center justify-between">
                             <div className="flex text-black items-center gap-3">
-                                <img className="rounded-full w-12 h-12" src={solImageUrl} alt="sol" />
+                                <Image className="rounded-full w-12 h-12" src={solImageUrl} alt="sol" />
                                 <span className="font-bold text-2xl">SOL</span>
                             </div>
 
@@ -596,7 +579,7 @@ const StakeComponent = () => {
 
                         <div className="flex items-center justify-between">
                             <div className="flex text-black items-center gap-3">
-                                <img className="rounded-full w-12 h-12" src={samsolImageUrl} alt="Sam" />
+                                <Image className="rounded-full w-12 h-12" src={samsolImageUrl} alt="Sam" />
                                 <span className="font-bold text-2xl">Sam</span>
                             </div>
 

@@ -1,49 +1,14 @@
 "use client";
-import Image from "next/image";
 import { useState } from 'react';
-import { ChevronDown, ArrowRight } from 'lucide-react';
 import StakeComponent from "../../components/StakeComponent";
 import UnStakeComponent from "../../components/UnStakeComponent";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
-const tokens = [
-  {
-    symbol: 'SOL',
-    name: 'Solana',
-    balance: '0.0193',
-    usdValue: '$3.94',
-    icon: '🟣'
-  },
-  {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    balance: '100.50',
-    usdValue: '$100.50',
-    icon: '🔵'
-  },
-  {
-    symbol: 'BONK',
-    name: 'Bonk',
-    balance: '1000000',
-    usdValue: '$25.30',
-    icon: '🟠'
-  }
-];
-
 export default function Home() {
   const [activeTab, setActiveTab] = useState('stake');
-  const [selectedToken, setSelectedToken] = useState(tokens[0]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [inputAmount, setInputAmount] = useState('');
 
-  const handleTokenSelect = (token: any) => {
-    setSelectedToken(token);
-    setShowDropdown(false);
-  };
 
-  const handleUseMax = () => {
-    setInputAmount(selectedToken.balance);
-  };
+;
 
   return (
     <div className="min-h-screen   bg-[#f1f0fa] py-4 sm:py-6 md:py-8">

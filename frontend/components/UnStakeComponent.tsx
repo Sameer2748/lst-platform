@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplTokenMetadata, fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
 import { publicKey as umiPk } from "@metaplex-foundation/umi";
-
+import Image from 'next/image';
+interface OffchainMetadata {
+    image?: string;
+    description?: string;
+    [key: string]: unknown;
+  }
+  
 // Define the interface for the token details
 interface TokenDetail {
     tokenAccount: string;
@@ -27,7 +31,7 @@ const UnStakeComponent = () => {
     const [samsolDetail, setSamSolDetail] = useState<TokenDetail | null>({
         tokenAccount: "21E7eUyhwhqkxssZ5A2VwKiRUkmKjAJL9P4DwXsRVgHx",
         mint: "5fp4btmfcwqhmoxf8TJc4Zj7rgRafJJi8KwLu743kVuZ",
-        amount: 5000000000n, // bigint
+        amount: BigInt(5000000000), // bigint
         decimals: 9,
         uiAmount: 5,
         owner: "5fxqKBcGKhx4zs4zdqocYuJxYNk4sCYJ4yXKNyyDebZP",
@@ -42,16 +46,14 @@ const [inputAmount, setInputAmount] = useState('');
 const [unstakeLoading, setUnstakeLoading] = useState(false);
 const [unstakeStatus, setUnstakeStatus] = useState<string>('');
 
-const connection = new Connection(
+const connection = useMemo(() => new Connection(
     process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
     "confirmed"
-);
-
+), []);
 const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg";
-const solImageUrl = "https://imgs.search.brave.com/YRcgd3-E4u7oewRc-ZSSbJTG3hRm20spgyUM-1BYYeU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/YnJhbmRmZXRjaC5p/by9pZGUwTlV1VEhP/L3cvNDAwL2gvNDAw/L3RoZW1lL2Rhcmsv/aWNvbi5qcGVnP2M9/MWJ4aWQ2NE11cDdh/Y3pld1NBWU1YJnQ9/MTY2NzY0NDU5NjQ2/NQ";
 const Backend_url = process.env.BACKEND_URL! || "https://lst-backend.100xsam.store";
 
-const fetchSamSol = async () => {
+const fetchSamSol = useCallback(async () => {
     if (!publicKey) {
         console.error('Wallet not connected');
         return;
@@ -109,7 +111,7 @@ const fetchSamSol = async () => {
             const uri = asset.metadata.uri;
 
             // Fetch off-chain metadata if URI exists
-            let offchain: any = null;
+            let offchain: OffchainMetadata | null = null;
             if (uri && /^https?:\/\//i.test(uri)) {
                 try {
                     const res = await fetch(uri);
@@ -156,13 +158,13 @@ const fetchSamSol = async () => {
     } finally {
         setLoading(false);
     }
-};
+}, [publicKey, connection]);
 
 useEffect(() => {
     if (publicKey) {
         fetchSamSol();
     }
-}, [publicKey]);
+}, [publicKey,fetchSamSol]);
 
 const handleUseMax = () => {
     if (samsolDetail && samsolDetail.uiAmount) {
@@ -278,17 +280,19 @@ const handleUnstake = async () => {
             throw new Error(`Unstake failed: ${JSON.stringify(finalData)}`);
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('❌ Unstake error:', error);
 
         // More specific error messages
         let errorMessage = 'Unstake failed. Please try again.';
-        if (error.message.includes('User rejected')) {
-            errorMessage = 'Transaction cancelled by user.';
-        } else if (error.message.includes('Insufficient funds')) {
-            errorMessage = 'Insufficient balance for transaction.';
-        } else if (error.message.includes('Network')) {
-            errorMessage = 'Network error. Please check your connection.';
+        if (error instanceof Error) {
+            if (error.message.includes('User rejected')) {
+                errorMessage = 'Transaction cancelled by user.';
+            } else if (error.message.includes('Insufficient funds')) {
+                errorMessage = 'Insufficient balance for transaction.';
+            } else if (error.message.includes('Network')) {
+                errorMessage = 'Network error. Please check your connection.';
+            }
         }
 
         setUnstakeStatus(errorMessage);
@@ -338,7 +342,7 @@ return (
                     {/* You're unstaking card */}
                     <div className="w-full h-[155px] bg-white rounded-3xl px-6 py-4">
                         <div className="flex justify-between text-black mb-4">
-                            <h1 className="text-xl font-semibold">You're unstaking</h1>
+                            <h1 className="text-xl font-semibold">You&apos;re unstaking</h1>
                             <div className="flex justify-center items-center gap-2">
                                 <p className="text-sm text-gray-500">
                                     {getBalance()} {getSymbol()}
@@ -357,7 +361,7 @@ return (
                         <div className="flex items-center justify-between">
                             {/* Token Display */}
                             <div className="flex text-black items-center gap-3">
-                                <img
+                                <Image 
                                     className="w-10 h-10 rounded-full"
                                     src={samsolDetail?.image || samsolImageUrl}
                                     alt="SamSOL"
@@ -473,7 +477,7 @@ return (
                 {/* Unstaking Form - Mobile */}
                 <div className="w-full bg-white rounded-3xl px-4 py-6">
                     <div className="flex justify-between text-black mb-4">
-                        <h1 className="text-lg font-semibold">You're unstaking</h1>
+                        <h1 className="text-lg font-semibold">You&apos;re unstaking</h1>
                         <div className="flex justify-center items-center gap-2">
                             <p className="text-sm text-gray-500">
                                 {getBalance()} {getSymbol()}
@@ -491,7 +495,7 @@ return (
                     {/* Token Selection and Input - Mobile */}
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex text-black items-center gap-3">
-                            <img
+                            <Image
                                 className="w-12 h-12 rounded-full"
                                 src={samsolDetail?.image || samsolImageUrl}
                                 alt="SamSOL"
