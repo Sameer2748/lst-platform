@@ -174,14 +174,22 @@ app.post('/unstake', async (req, res) => {
 });
 
 // STATUS CHECK
-app.get('/transactions/status', async (req, res) => {
-    const { user } = req.query;
-    const transactions = await db.transaction.findMany({
-        where: { user: user as string },
-        orderBy: { createdAt: 'desc' },
-        take: 10
-    });
-    res.json(transactions);
+app.get('/transactions/status/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const transaction = await db.transaction.findUnique({
+            where: { id: id }
+        });
+        
+        if (!transaction) {
+            return res.status(404).json({ error: 'Transaction not found' });
+        }
+        
+        res.json({ status: transaction.status });
+    } catch (error) {
+        console.error('Error fetching transaction status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 app.listen(3003, () => {
