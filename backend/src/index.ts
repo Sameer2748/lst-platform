@@ -9,7 +9,7 @@ import cors from "cors"
 
 const app = express();
 app.use(express.json());
-app.use(cors);
+app.use(cors());
 const db = new PrismaClient();
 
 app.post('/stake-init', async (req, res) => {
