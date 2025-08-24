@@ -4,12 +4,12 @@ import { burnTokens, mintTokens, sendNativeTokens } from './mintTokens';
 import { PrismaClient } from '@prisma/client';
 import { loadPlatformWallet } from "./wallet";
 import { Connection, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
-
+import cors from "cors"
 const app = express();
+app.use(cors());
 app.use(express.json());
 const db = new PrismaClient();
 
-app.use(cors());
 
 app.post('/stake-init', async (req, res) => {
     const { userWallet, amount } = req.body;
