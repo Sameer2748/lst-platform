@@ -50,7 +50,7 @@ app.post('/helius', async (req, res) => {
 
     try {
         // Loop through all tokenTransfers in case multiple transfers in one tx
-        console.log("Helius webhook body:", req.body);
+        console.log("Helius webhook body:", JSON.stringify(req.body));
         const deposits = req.body[0].tokenTransfers[0].filter(
             (t:any) => t.toUserAccount === VAULT_ADDRESS
         );
