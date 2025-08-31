@@ -324,82 +324,8 @@ const StakeComponent = () => {
     };
 
     const handleStake = async () => {
-        if (!publicKey || !signTransaction) {
-            toast.error("Wallet not connected or cannot sign transactions");
-            return;
-        }
-
-        if (!inputAmount || parseFloat(inputAmount) <= 0) {
-            toast.error("Please enter a valid amount");
-            return;
-        }
-
-        const userWallet = new PublicKey(publicKey!);
-        setStakeStarted(true);
-
-        try {
-            toast.info("Initiating stake transaction...");
-
-            // Create transaction in backend
-            const response = await axios.post(`${Backend_url}/stake-init`, {
-                userWallet: publicKey,
-                amount: parseFloat(inputAmount)
-            });
-            
-            const txnId = response.data.txId || response.data.txnId || response.data.transactionId || response.data.id;
-            console.log("Backend transaction ID:", txnId);
-            console.log("Full backend response:", response.data);
-
-            if (!txnId) {
-                throw new Error("No transaction ID received from backend");
-            }
-
-            // Create blockchain transaction
-            const txn = new Transaction();
-            txn.add(
-                SystemProgram.transfer({
-                    fromPubkey: userWallet,
-                    toPubkey: vaultKey,
-                    lamports: parseFloat(inputAmount) * 1e9,
-                })
-            );
-
-            // Get a recent blockhash
-            txn.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-            txn.feePayer = userWallet;
-
-            // Sign and send transaction
-            console.log("Signing transaction...");
-            const signedTx = await signTransaction(txn);
-
-            // Send transaction
-            const solanaSignature = await connection.sendRawTransaction(signedTx.serialize());
-            console.log("Solana transaction signature:", solanaSignature);
-
-            // Start background confirmation (non-blocking)
-            connection.confirmTransaction({ 
-                signature: solanaSignature, 
-                blockhash: (await connection.getLatestBlockhash()).blockhash, 
-                lastValidBlockHeight: (await connection.getLatestBlockhash()).lastValidBlockHeight 
-            }, "confirmed")
-                .then(() => console.log("Solana transaction confirmed"))
-                .catch(err => console.error("Solana confirmation failed:", err));
-
-            toast.success("Transaction submitted successfully!");
-
-            // Start polling for status updates
-            startPolling(txnId);
-
-            // Reset form and fetch the token detail again  
-            fetchSol();
-            setInputAmount('');
-            
-        } catch (error) {
-            console.error("Error during staking:", error);
-            toast.error("Failed to submit transaction. Please try again.");
-        } finally {
-            setStakeStarted(false);
-        }
+      console.log("now use the anchor contract for staking");
+      
     };
 
     if (!publicKey) {
