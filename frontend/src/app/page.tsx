@@ -8,8 +8,6 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('stake');
 
 
-;
-
   return (
     <div className="min-h-screen   bg-[#f1f0fa] py-4 sm:py-6 md:py-8">
       <div className="container w-full px-2 sm:px-4 md:px-6 lg:px-22 ">

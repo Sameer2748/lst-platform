@@ -1,12 +1,20 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
-import {  ArrowRightIcon, CheckCircle, AlertCircle, Clock, XCircle, ArrowDownIcon } from "lucide-react";
+import { Connection, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
+import { ArrowRightIcon, CheckCircle, AlertCircle, Clock, XCircle, ArrowDownIcon } from "lucide-react";
 import { toast } from "sonner";
-import axios from "axios"
 import Image from "next/image";
-
+import { 
+  getSamSOLBalance, 
+  checkUserStakeAccount, 
+  createUserStakeAccountTransaction, 
+  createStakeTransaction,
+  getStakedAmount,
+  getUserStakePDA,
+  getUserVaultPDA,
+  createTokenAccountIfNeeded
+} from "@/utils/contractUtils";
 
 // Transaction status types
 type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled' | 'processing';
@@ -67,7 +75,7 @@ const StatusPopup: React.FC<StatusPopupProps> = ({ status, txnId, amount, onClos
     const config = getStatusConfig(status);
 
     return (
-        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className={`${config.bgColor} ${config.borderColor} border-2 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl`}>
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
@@ -79,10 +87,12 @@ const StatusPopup: React.FC<StatusPopupProps> = ({ status, txnId, amount, onClos
                     <p className="text-gray-600 mb-4">
                         {config.description}
                     </p>
-                    <div className="bg-white rounded-lg p-3 mb-6">
-                        <p className="text-sm text-gray-500">Transaction ID:</p>
-                        <p className="text-xs font-mono break-all text-gray-700">{txnId}</p>
-                    </div>
+                    {txnId && (
+                        <div className="bg-white rounded-lg p-3 mb-6">
+                            <p className="text-sm text-gray-500">Transaction ID:</p>
+                            <p className="text-xs font-mono break-all text-gray-700">{txnId}</p>
+                        </div>
+                    )}
                     {(status === 'completed' || status === 'failed' || status === 'cancelled') && (
                         <button
                             onClick={onClose}
@@ -100,208 +110,71 @@ const StatusPopup: React.FC<StatusPopupProps> = ({ status, txnId, amount, onClos
 const StakeComponent = () => {
     const { publicKey, signTransaction } = useWallet();
     const [solBalance, setSolBalance] = useState<number | null>(null);
-    // const [samsolDetail, setSamSolDetail] = useState<TokenDetail | null>(null);
+    const [samsolBalance, setSamsolBalance] = useState<number>(0);
+    const [stakedAmount, setStakedAmount] = useState<number>(0);
+    const [hasStakeAccount, setHasStakeAccount] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [inputAmount, setInputAmount] = useState('');
     const [inputError, setInputError] = useState(false);
     const [stakeStarted, setStakeStarted] = useState(false);
     
-    // New states for transaction polling
+    // Transaction popup states
     const [showStatusPopup, setShowStatusPopup] = useState(false);
     const [currentTxnId, setCurrentTxnId] = useState<string>('');
     const [currentStatus, setCurrentStatus] = useState<TransactionStatus>('pending');
-    const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
     const connection = useMemo(() => new Connection(
-        process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
+        process.env.NEXT_PUBLIC_SOLANA_RPC || "https://devnet.helius-rpc.com/?api-key=d634c70f-6302-40db-9292-72c25d3dda26",
         "confirmed"
     ), []);
 
-    const vaultKey = new PublicKey(process.env.PLATFORM_WALLET! || "DTceCyCi4ypRbHqjo4S7huHQr3j9NAcNf4wHkvN5A1cT")
-    const Backend_url = process.env.BACKEND_URL! || "https://lst-backend.100xsam.store";
-    const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg"
-    const solImageUrl = "https://imgs.search.brave.com/YRcgd3-E4u7oewRc-ZSSbJTG3hRm20spgyUM-1BYYeU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/YnJhbmRmZXRjaC5p/by9pZGUwTlV1VEhP/L3cvNDAwL2gvNDAw/L3RoZW1lL2Rhcmsv/aWNvbi5qcGVnP2M9/MWJ4aWQ2NE11cDdh/Y3pld1NBWU1YJnQ9/MTY2NzY0NDU5NjQ2/NQ"
+    const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg";
+    const solImageUrl = "https://imgs.search.brave.com/YRcgd3-E4u7oewRc-ZSSbJTG3hRm20spgyUM-1BYYeU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/YnJhbmRmZXRjaC5p/by9pZGUwTlV1VEhP/L3cvNDAwL2gvNDAw/L3RoZW1lL2Rhcmsv/aWNvbi5qcGVnP2M9/MWJ4aWQ2NE11cDdh/Y3pld1NBWU1YJnQ9/MTY2NzY0NDU5NjQ2/NQ";
 
-    // Fetch SOL balance
-    const fetchSol = useCallback(async () => {
+    // Fetch all balances and account info
+    const fetchBalances = useCallback(async () => {
+        if (!publicKey) return;
+        
         setLoading(true);
         try {
-            const balance = await connection.getBalance(publicKey!);
+            // Fetch SOL balance
+            const balance = await connection.getBalance(publicKey);
             setSolBalance(balance / LAMPORTS_PER_SOL);
+
+            // Fetch SamSOL balance
+            const { balance: samsolBal } = await getSamSOLBalance(connection, publicKey);
+            setSamsolBalance(samsolBal);
+
+            // Check if user has stake account
+            const hasAccount = await checkUserStakeAccount(connection, publicKey);
+            setHasStakeAccount(hasAccount);
+
+            // Fetch staked amount if account exists
+            if (hasAccount) {
+                const staked = await getStakedAmount(connection, publicKey);
+                setStakedAmount(staked);
+            }
+
         } catch (err) {
-            console.error("Error fetching SOL balance:", err);
+            console.error("Error fetching balances:", err);
+            toast.error("Failed to fetch account balances");
         }
         setLoading(false);
-    }, [publicKey,connection]);
-    // const fetchSamSol = async () => {
-    //     if (!publicKey) {
-    //       console.error('Wallet not connected');
-    //       return;
-    //     }
-      
-    //     // Replace this with the actual SAMSOL token mint address
-    //     const SAMSOL_MINT_ADDRESS = "5fp4btmfcwqhmoxf8TJc4Zj7rgRafJJi8KwLu743kVuZ";
-        
-    //     try {
-    //       const connection = new Connection(
-    //         process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
-    //         "confirmed"
-    //       );
-      
-    //       // Get token accounts for this specific mint
-    //       const resp = await connection.getParsedTokenAccountsByOwner(
-    //         publicKey,
-    //         { 
-    //           mint: new PublicKey(SAMSOL_MINT_ADDRESS)
-    //         },
-    //         "confirmed"
-    //       );
-      
-    //       if (resp.value.length === 0) {
-    //         console.log('No SAMSOL tokens found in wallet');
-    //         setSamSolDetail(null);
-    //         return;
-    //       }
-      
-    //       // Get the first (usually only) token account for this mint
-    //       const tokenAccount = resp.value[0];
-    //       const info = tokenAccount.account.data.parsed.info;
-          
-          
-    //       const rawTokenData = {
-    //         tokenAccount: tokenAccount.pubkey.toBase58(),
-    //         mint: info.mint as string,
-    //         amount: BigInt(info.tokenAmount.amount as string),
-    //         decimals: info.tokenAmount.decimals as number,
-    //         uiAmount: info.tokenAmount.uiAmount as number | null,
-    //         owner: info.owner as string,
-    //       };
-      
-    //       // Only proceed if there's a positive balance
-    //       if (rawTokenData.amount <= BigInt(0)) {
-    //         console.log('SAMSOL token balance is zero');
-    //         setSamSolDetail(null);
-    //         return;
-    //       }
-      
-    //       // Create UMI instance for metadata fetching
-    //       const umi = createUmi(
-    //         process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com"
-    //       ).use(mplTokenMetadata());
-      
-    //       try {
-    //         // Fetch token metadata
-    //         const asset = await fetchDigitalAsset(umi, umiPk(SAMSOL_MINT_ADDRESS));
-    //         const onchainName = asset.metadata.name;
-    //         const onchainSymbol = asset.metadata.symbol;
-    //         const uri = asset.metadata.uri;
-      
-    //         // Fetch off-chain metadata if URI exists
-    //         let offchain: any = null;
-    //         if (uri && /^https?:\/\//i.test(uri)) {
-    //           try {
-    //             const res = await fetch(uri);
-    //             if (res.ok) {
-    //               offchain = await res.json();
-    //             }
-    //           } catch (error) {
-    //             console.error('Error fetching off-chain metadata:', error);
-    //           }
-    //         }
-      
-    //         // Combine all token details
-    //         const tokenDetail: TokenDetail = {
-    //           ...rawTokenData,
-    //           onchainName,
-    //           onchainSymbol,
-    //           metadataUri: uri || null,
-    //           image: offchain?.image ?? null,
-    //           description: offchain?.description ?? null,
-    //         };
-      
-    //         setSamSolDetail(tokenDetail);
-    //         console.log('SAMSOL token details:', tokenDetail);
-      
-    //       } catch (metadataError) {
-    //         console.error('Error fetching metadata:', metadataError);
-            
-    //         // Set token details without metadata
-    //         const tokenDetail: TokenDetail = {
-    //           ...rawTokenData,
-    //           onchainName: null,
-    //           onchainSymbol: null,
-    //           metadataUri: null,
-    //           image: null,
-    //           description: null,
-    //         };
-      
-    //         setSamSolDetail(tokenDetail);
-    //       }
-      
-    //     } catch (error) {
-    //       console.error('Error fetching SAMSOL token:', error);
-    //       setSamSolDetail(null);
-    //     }
-    //   };
-    useEffect(() => {
-        if (!publicKey) return;
-        fetchSol();
-        // fetchSamSol()
-        
-    }, [publicKey, fetchSol]);
+    }, [publicKey, connection]);
 
-    // Cleanup polling interval on unmount
     useEffect(() => {
-        return () => {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-            }
-        };
-    }, [pollingInterval]);
-
-    // Function to check transaction status
-    const checkTransactionStatus = async (txnId: string): Promise<TransactionStatus> => {
-        try {
-            const response = await axios.get(`${Backend_url}/transactions/status/${txnId}`);
-            return response.data.status as TransactionStatus;
-        } catch (error) {
-            console.error('Error checking transaction status:', error);
-            return 'pending'; // Default to pending on error
+        if (publicKey) {
+            fetchBalances();
         }
-    };
-
-    // Function to start polling for transaction status
-    const startPolling = (txnId: string) => {
-        setCurrentTxnId(txnId);
-        setCurrentStatus('pending');
-        setShowStatusPopup(true);
-
-        const interval = setInterval(async () => {
-            const status = await checkTransactionStatus(txnId);
-            setCurrentStatus(status);
-
-            // Stop polling if transaction is in a final state
-            if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-                clearInterval(interval);
-                setPollingInterval(null);
-            }
-        }, 3000); // Poll every 3 seconds
-
-        setPollingInterval(interval);
-
-        // Safety timeout - stop polling after 5 minutes
-        setTimeout(() => {
-            if (interval) {
-                clearInterval(interval);
-                setPollingInterval(null);
-                setCurrentStatus('failed'); // Assume failed after timeout
-            }
-        }, 300000); // 5 minutes
-    };
+    }, [publicKey, fetchBalances]);
 
     const handleUseMax = () => {
-        setInputAmount(solBalance?.toString() ?? "0");
-        setInputError(false);
+        if (solBalance) {
+            // Leave some SOL for fees (0.01 SOL)
+            const maxStake = Math.max(0, solBalance - 0.01);
+            setInputAmount(maxStake.toString());
+            setInputError(false);
+        }
     };
 
     const handleInputChange = (value: string) => {
@@ -315,23 +188,220 @@ const StakeComponent = () => {
 
     const handleClosePopup = () => {
         setShowStatusPopup(false);
-        if (pollingInterval) {
-            clearInterval(pollingInterval);
-            setPollingInterval(null);
-        }
         setCurrentTxnId('');
         setCurrentStatus('pending');
+        // Refresh balances after transaction
+        fetchBalances();
     };
 
     const handleStake = async () => {
-      console.log("now use the anchor contract for staking");
-      
+        if (!publicKey || !signTransaction || !inputAmount) {
+            toast.error("Please connect wallet and enter amount");
+            return;
+        }
+
+        // Prevent multiple clicks
+        if (stakeStarted) {
+            console.log("Transaction already in progress");
+            return;
+        }
+
+        const stakeAmountSOL = parseFloat(inputAmount);
+        if (stakeAmountSOL <= 0) {
+            toast.error("Please enter a valid amount");
+            return;
+        }
+
+        if (solBalance && stakeAmountSOL > solBalance) {
+            toast.error("Insufficient SOL balance");
+            return;
+        }
+
+        setStakeStarted(true);
+        setCurrentStatus('processing');
+        setShowStatusPopup(true);
+
+        let txId: string = '';
+
+        try {
+            let transaction: Transaction;
+
+            // Check if user needs to create stake account first
+            if (!hasStakeAccount) {
+                console.log("Creating user stake account...");
+                const createAccountTx = await createUserStakeAccountTransaction(publicKey);
+                
+                // Get fresh blockhash for create account transaction
+                const { blockhash: createBlockhash, lastValidBlockHeight: createHeight } = await connection.getLatestBlockhash('finalized');
+                createAccountTx.recentBlockhash = createBlockhash;
+                createAccountTx.feePayer = publicKey;
+
+                const signedCreateTx = await signTransaction(createAccountTx);
+                const createTxId = await connection.sendRawTransaction(signedCreateTx.serialize(), {
+                    skipPreflight: false,
+                    preflightCommitment: 'confirmed'
+                });
+                
+                console.log("Waiting for stake account creation confirmation...");
+                await connection.confirmTransaction({
+                    signature: createTxId,
+                    blockhash: createBlockhash,
+                    lastValidBlockHeight: createHeight
+                }, 'confirmed');
+                
+                console.log("Stake account created:", createTxId);
+                setHasStakeAccount(true);
+                
+                // Wait for account to be available
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+
+            // Create stake transaction with fresh blockhash
+            console.log("Creating stake transaction...");
+            
+            // Check if we need to create token account first
+            const { instruction: createTokenAccountIx } = await createTokenAccountIfNeeded(
+                connection,
+                publicKey,
+                publicKey
+            );
+
+            // If we need to create token account, do it in a separate transaction first
+            if (createTokenAccountIx) {
+                console.log("Creating token account first...");
+                const createTokenTx = new Transaction().add(createTokenAccountIx);
+                
+                const { blockhash: tokenBlockhash, lastValidBlockHeight: tokenHeight } = await connection.getLatestBlockhash('finalized');
+                createTokenTx.recentBlockhash = tokenBlockhash;
+                createTokenTx.feePayer = publicKey;
+
+                const signedTokenTx = await signTransaction(createTokenTx);
+                const tokenTxId = await connection.sendRawTransaction(signedTokenTx.serialize(), {
+                    skipPreflight: false,
+                    preflightCommitment: 'confirmed'
+                });
+                
+                console.log("Waiting for token account creation...");
+                await connection.confirmTransaction({
+                    signature: tokenTxId,
+                    blockhash: tokenBlockhash,
+                    lastValidBlockHeight: tokenHeight
+                }, 'confirmed');
+                
+                console.log("Token account created:", tokenTxId);
+                // Wait for account to be available
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            // Now create the stake transaction
+            transaction = await createStakeTransaction(connection, publicKey, stakeAmountSOL);
+            
+            // Get a fresh blockhash for the stake transaction
+            const { blockhash: stakeBlockhash, lastValidBlockHeight: stakeHeight } = await connection.getLatestBlockhash('finalized');
+            transaction.recentBlockhash = stakeBlockhash;
+            transaction.feePayer = publicKey;
+
+            console.log("Signing and sending stake transaction...");
+            // Sign and send transaction
+            const signedTransaction = await signTransaction(transaction);
+            
+            txId = await connection.sendRawTransaction(signedTransaction.serialize(), {
+                skipPreflight: false,
+                preflightCommitment: 'confirmed',
+                maxRetries: 3
+            });
+            
+            setCurrentTxnId(txId);
+            setCurrentStatus('pending');
+
+            console.log("Transaction sent:", txId);
+            console.log("Waiting for confirmation...");
+
+            // Wait for confirmation with timeout
+            const confirmationResult = await Promise.race([
+                connection.confirmTransaction({
+                    signature: txId,
+                    blockhash: stakeBlockhash,
+                    lastValidBlockHeight: stakeHeight
+                }, 'confirmed'),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
+                )
+            ]);
+
+            console.log("Transaction confirmed:", confirmationResult);
+            
+            setCurrentStatus('completed');
+            toast.success(`Successfully staked ${stakeAmountSOL} SOL!`);
+            
+            // Clear input and refresh data
+            setInputAmount('');
+            await fetchBalances();
+
+        } catch (error: any) {
+            console.error("Staking error:", error);
+            
+            if (error.message?.includes('User rejected') || error.message?.includes('User denied')) {
+                toast.error("Transaction cancelled by user");
+                setCurrentStatus('cancelled');
+            } else if (error.message?.includes('already been processed')) {
+                console.log("Transaction already processed, checking if it succeeded...");
+                
+                // Wait a bit and then check balances to see if transaction actually went through
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                await fetchBalances();
+                
+                // If balances changed, transaction was successful despite the error
+                const newSamsolBalance = await getSamSOLBalance(connection, publicKey);
+                if (newSamsolBalance.balance > samsolBalance) {
+                    setCurrentStatus('completed');
+                    toast.success(`Transaction completed! Successfully staked SOL.`);
+                    setInputAmount('');
+                } else {
+                    setCurrentStatus('failed');
+                    toast.error("Transaction was processed but status unclear. Please check your balance.");
+                }
+            } else if (error.message?.includes('Blockhash not found') || error.message?.includes('Confirmation timeout')) {
+                console.log("Transaction may have succeeded, checking...");
+                
+                // For timeout/blockhash errors, check if transaction actually went through
+                if (txId) {
+                    try {
+                        // Check transaction status directly
+                        const txStatus = await connection.getSignatureStatus(txId);
+                        if (txStatus.value?.confirmationStatus === 'confirmed' || txStatus.value?.confirmationStatus === 'finalized') {
+                            setCurrentStatus('completed');
+                            toast.success(`Transaction completed! Successfully staked SOL.`);
+                            setInputAmount('');
+                            await fetchBalances();
+                        } else {
+                            setCurrentStatus('failed');
+                            toast.error("Transaction may have failed. Please try again.");
+                        }
+                    } catch (statusError) {
+                        setCurrentStatus('failed');
+                        toast.error("Transaction status unclear. Please check your balance and try again if needed.");
+                    }
+                } else {
+                    setCurrentStatus('failed');
+                    toast.error("Transaction expired. Please try again.");
+                }
+            } else {
+                setCurrentStatus('failed');
+                toast.error(`Staking failed: ${error.message || 'Unknown error'}`);
+            }
+            
+            // Always refresh balances to get current state
+            await fetchBalances();
+        } finally {
+            setStakeStarted(false);
+        }
     };
 
     if (!publicKey) {
         return (
             <div className="w-full h-[60vh] flex items-center justify-center text-gray-400 text-xl px-4">
-                <p className="text-center">Connect your wallet to see SOL balance.</p>
+                <p className="text-center">Connect your wallet to start staking SOL.</p>
             </div>
         );
     }
@@ -339,7 +409,7 @@ const StakeComponent = () => {
     if (loading || solBalance === null) {
         return (
             <div className="w-full h-[60vh] flex items-center justify-center text-gray-500 text-xl animate-pulse px-4">
-                <p className="text-center">Loading SOL balance...</p>
+                <p className="text-center">Loading balances...</p>
             </div>
         );
     }
@@ -365,6 +435,31 @@ const StakeComponent = () => {
                 </div>
             </div>
 
+            {/* Balance Display */}
+            <div className="mt-4 mb-8 grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                <div className="bg-white rounded-xl p-4">
+                    <p className="text-sm text-gray-500">SOL Balance</p>
+                    <p className="text-xl font-bold text-gray-800">{solBalance.toFixed(4)}</p>
+                </div>
+                <div className="bg-white rounded-xl p-4">
+                    <p className="text-sm text-gray-500">SamSOL Balance</p>
+                    <p className="text-xl font-bold text-purple-600">{samsolBalance.toFixed(4)}</p>
+                </div>
+                <div className="bg-white rounded-xl p-4 col-span-2 md:col-span-1">
+                    <p className="text-sm text-gray-500">Total Staked</p>
+                    <p className="text-xl font-bold text-green-600">{stakedAmount.toFixed(4)} SOL</p>
+                </div>
+            </div>
+
+            {/* Account Status Alert */}
+            {!hasStakeAccount && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-blue-800 text-sm">
+                        <strong>Note:</strong> This is your first time staking. We'll create your stake account automatically.
+                    </p>
+                </div>
+            )}
+
             {/* Main staking interface - Different layouts for mobile and desktop */}
             <div className="w-full mt-8 md:mt-12">
                 {/* Desktop Layout (hidden on mobile) */}
@@ -388,7 +483,7 @@ const StakeComponent = () => {
                         <div className="flex items-center justify-between px-2 mt-4">
                             <div className="relative">
                                 <div className="flex text-black items-center gap-2 rounded-xl py-2">
-                                    <Image className="rounded-full w-10 h-10 " src={solImageUrl} alt="samsol" />
+                                    <Image className="rounded-full w-10 h-10" src={solImageUrl} alt="sol" width={40} height={40} />
                                     <span className="font-bold text-3xl">SOL</span>
                                 </div>
                             </div>
@@ -423,8 +518,8 @@ const StakeComponent = () => {
                         <div className="flex items-center justify-between px-2 mt-4">
                             <div className="relative">
                                 <div className="flex text-black items-center gap-2 rounded-xl py-2">
-                                    <Image className="rounded-full w-10 h-10 " src={samsolImageUrl} alt="Sam" />
-                                    <span className="font-bold text-3xl">Sam</span>
+                                    <Image className="rounded-full w-10 h-10" src={samsolImageUrl} alt="SamSOL" width={40} height={40} />
+                                    <span className="font-bold text-3xl">SamSOL</span>
                                 </div>
                             </div>
 
@@ -432,7 +527,7 @@ const StakeComponent = () => {
                                 <input
                                     type="number"
                                     value={(parseFloat(inputAmount) || 0)}
-                                    className="text-4xl font-bold text-right bg-transparent border-none outline-none   md:w-44 lg:w-46 xl:w-86"
+                                    className="text-4xl font-bold text-right bg-transparent border-none outline-none md:w-44 lg:w-46 xl:w-86"
                                     placeholder="0.0"
                                     disabled
                                 />
@@ -467,7 +562,7 @@ const StakeComponent = () => {
 
                         <div className="flex items-center justify-between">
                             <div className="flex text-black items-center gap-3">
-                                <Image className="rounded-full w-12 h-12" src={solImageUrl} alt="sol" />
+                                <Image className="rounded-full w-12 h-12" src={solImageUrl} alt="sol" width={48} height={48} />
                                 <span className="font-bold text-2xl">SOL</span>
                             </div>
 
@@ -505,8 +600,8 @@ const StakeComponent = () => {
 
                         <div className="flex items-center justify-between">
                             <div className="flex text-black items-center gap-3">
-                                <Image className="rounded-full w-12 h-12" src={samsolImageUrl} alt="Sam" />
-                                <span className="font-bold text-2xl">Sam</span>
+                                <Image className="rounded-full w-12 h-12" src={samsolImageUrl} alt="SamSOL" width={48} height={48} />
+                                <span className="font-bold text-2xl">SamSOL</span>
                             </div>
 
                             <div className="text-right">
@@ -531,16 +626,16 @@ const StakeComponent = () => {
                             <button 
                                 onClick={handleStake} 
                                 disabled={inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0} 
-                                className={`w-full h-12 rounded-3xl text-white text-md cursor-pointer text-semibold ${
-                                    inputError === true || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
-                                        ? "bg-purple-400 text-black" 
+                                className={`w-full h-12 rounded-3xl text-white text-md cursor-pointer font-semibold ${
+                                    inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
+                                        ? "bg-purple-400 text-black cursor-not-allowed" 
                                         : "bg-purple-500 hover:bg-purple-600"
                                 } transition-colors`}
                             >
-                                {stakeStarted ? "Processing..." : "Convert to Sam"}
+                                {stakeStarted ? "Processing..." : "Convert to SamSOL"}
                             </button>
                             <div className="flex justify-between items-center text-black pt-4 px-2">
-                                <p className="text-gray-500 text-sm">1 Sam</p>
+                                <p className="text-gray-500 text-sm">1 SamSOL</p>
                                 <p className="text-sm">~1 SOL</p>
                             </div>
                         </div>
@@ -552,15 +647,15 @@ const StakeComponent = () => {
                             onClick={handleStake} 
                             disabled={inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0} 
                             className={`w-full h-14 rounded-3xl text-white text-lg font-semibold ${
-                                inputError === true || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
-                                    ? "bg-purple-400 text-black" 
+                                inputError || stakeStarted || !inputAmount || parseFloat(inputAmount) <= 0
+                                    ? "bg-purple-400 text-black cursor-not-allowed" 
                                     : "bg-purple-500 hover:bg-purple-600"
                             } transition-colors`}
                         >
-                            {stakeStarted ? "Processing..." : "Convert to Sam"}
+                            {stakeStarted ? "Processing..." : "Convert to SamSOL"}
                         </button>
                         <div className="flex justify-between items-center text-black pt-4 px-2">
-                            <p className="text-gray-500 text-sm">1 Sam</p>
+                            <p className="text-gray-500 text-sm">1 SamSOL</p>
                             <p className="text-sm">~1 SOL</p>
                         </div>
                     </div>
