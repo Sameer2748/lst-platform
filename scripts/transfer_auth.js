@@ -13,10 +13,10 @@ import bs58 from "bs58";
 const PRIVATE_KEY_BASE58 = "your-token-authority-wallet-private-key";
 
 // NEW Token mint (your updated token)
-const NEW_SAMSOL_MINT = new PublicKey("4c1zJyLyTGep3fuP4ZdPPc7PJqupDvyGD3hzSUfQBoDX");
+const NEW_SAMSOL_MINT = new PublicKey("");
 
 // Program ID (NEW deployed program)
-const PROGRAM_ID = new PublicKey("AFU3sLSc7vXEEuBbEnZn2R3XnoFXryRaPqDEaoaJri9d");
+const PROGRAM_ID = new PublicKey("");
 
 // NEW seed for global mint authority
 const GLOBAL_SEED = "global_mint_authority";
@@ -57,12 +57,11 @@ const GLOBAL_SEED = "global_mint_authority";
     );
 
     const txSig = await sendAndConfirmTransaction(connection, tx, [wallet]);
-    console.log("✅ Transaction confirmed. Signature:", txSig);
-    console.log(`✅ Mint authority of new SamSOL is now set to GLOBAL PDA: ${globalMintAuthorityPDA.toBase58()}`);
+    console.log(" Transaction confirmed. Signature:", txSig);
+    console.log(` Mint authority of new SamSOL is now set to GLOBAL PDA: ${globalMintAuthorityPDA.toBase58()}`);
     
-    console.log("\n🎉 Now ANY user can stake and get SamSOL tokens!");
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error(" Error:", error);
   }
 })();

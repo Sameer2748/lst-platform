@@ -17,10 +17,10 @@ import {
 } from "@solana/spl-token";
 import bs58 from "bs58";
 
-// Configuration - UPDATED WITH YOUR SUCCESSFUL SETUP
-const PROGRAM_ID = new PublicKey("AFU3sLSc7vXEEuBbEnZn2R3XnoFXryRaPqDEaoaJri9d");
-const SAMSOL_MINT = new PublicKey("4c1zJyLyTGep3fuP4ZdPPc7PJqupDvyGD3hzSUfQBoDX");
-const GLOBAL_MINT_AUTHORITY_PDA = new PublicKey("5Hg56BGr1u9xvwGPaLDWqrQ9BZ8Yk5eoPcmCyDXysWK4");
+const PROGRAM_ID = new PublicKey("");
+const SAMSOL_MINT = new PublicKey("");
+// you will get this after running the script initialize-global-auth.js for your contract 
+const GLOBAL_MINT_AUTHORITY_PDA = new PublicKey("");
 
 // Instruction discriminators from your IDL
 const CREATE_USER_STAKE_DISCRIMINATOR = Buffer.from([179, 34, 161, 2, 154, 58, 57, 29]);
@@ -41,8 +41,6 @@ function serializeU64(value) {
 }
 
 async function main() {
-  console.log("🧪 Complete Staking Contract Test\n");
-  
   // Setup
   const connection = new Connection("your-rpc-url", "confirmed");
   
@@ -68,27 +66,24 @@ async function main() {
     console.log("User Stake PDA:", userStakePDA.toBase58());
     console.log("User Vault PDA:", userVaultPDA.toBase58());
     
-    // Test 1: Verify contract setup
-    console.log("\n📋 Test 1: Verify contract setup");
+    console.log(" Test 1: Verify contract setup");
     
-    // Check global mint authority exists
     const globalAuthorityInfo = await connection.getAccountInfo(GLOBAL_MINT_AUTHORITY_PDA);
     if (!globalAuthorityInfo) {
       throw new Error("Global mint authority not found!");
     }
-    console.log("✅ Global mint authority exists");
+    console.log(" Global mint authority exists");
     
-    // Check token mint authority
     const mintInfo = await getMint(connection, SAMSOL_MINT);
     if (!mintInfo.mintAuthority?.equals(GLOBAL_MINT_AUTHORITY_PDA)) {
       throw new Error(`Token mint authority not set to global PDA! Current: ${mintInfo.mintAuthority?.toBase58()}`);
     }
-    console.log("✅ Token mint authority correctly set to global PDA");
+    console.log(" Token mint authority correctly set to global PDA");
     
-    // Test 2: Create user stake account
-    console.log("\n👤 Test 2: Create user stake account");
+
+    console.log(" Test 2: Create user stake account");
     
-    // Check if already exists
+
     let userStakeInfo = await connection.getAccountInfo(userStakePDA);
     if (!userStakeInfo) {
       const createStakeKeys = [
@@ -106,15 +101,15 @@ async function main() {
       
       const createTx = new Transaction().add(createStakeIx);
       const createSig = await sendAndConfirmTransaction(connection, createTx, [testUser]);
-      console.log("✅ User stake account created:", createSig);
+      console.log(" User stake account created:", createSig);
       
       await sleep(2000);
     } else {
-      console.log("✅ User stake account already exists");
+      console.log(" User stake account already exists");
     }
     
-    // Test 3: Setup user token account
-    console.log("\n🪙 Test 3: Setup user token account");
+
+    console.log(" Test 3: Setup user token account");
     
     const userTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
@@ -122,14 +117,13 @@ async function main() {
       SAMSOL_MINT,
       testUser.publicKey
     );
-    console.log("✅ User token account:", userTokenAccount.address.toBase58());
+    console.log(" User token account:", userTokenAccount.address.toBase58());
     
     // Test 4: Stake SOL
-    console.log("\n💰 Test 4: Stake SOL");
+    console.log(" Test 4: Stake SOL");
     
     const stakeAmount = 0.1 * LAMPORTS_PER_SOL; // 0.1 SOL
     
-    // Get initial balances
     const initialSolBalance = await connection.getBalance(testUser.publicKey);
     const initialTokenBalance = await getAccount(connection, userTokenAccount.address);
     const initialVaultBalance = await connection.getBalance(userVaultPDA);
@@ -139,7 +133,7 @@ async function main() {
     console.log(`- User SamSOL: ${initialTokenBalance.amount.toString()} tokens`);
     console.log(`- Vault SOL: ${(initialVaultBalance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
     
-    // Create stake instruction
+
     const stakeKeys = [
       { pubkey: testUser.publicKey, isSigner: true, isWritable: true },
       { pubkey: userStakePDA, isSigner: false, isWritable: true },
@@ -166,7 +160,7 @@ async function main() {
     
     const stakeTx = new Transaction().add(stakeIx);
     const stakeSig = await sendAndConfirmTransaction(connection, stakeTx, [testUser]);
-    console.log("✅ Stake transaction:", stakeSig);
+    console.log(" Stake transaction:", stakeSig);
     
     await sleep(3000);
     
@@ -189,9 +183,9 @@ async function main() {
     console.log(`- Vault received: ${vaultReceived} (expected: ${stakeAmount})`);
     
     if (tokensReceived === stakeAmount && vaultReceived === stakeAmount) {
-      console.log("✅ Staking successful!");
+      console.log(" Staking successful!");
     } else {
-      console.log("❌ Staking verification failed");
+      console.log(" Staking verification failed");
     }
     
     // Test 5: Unstake partial amount
@@ -234,7 +228,7 @@ async function main() {
     
     const unstakeTx = new Transaction().add(unstakeIx);
     const unstakeSig = await sendAndConfirmTransaction(connection, unstakeTx, [testUser]);
-    console.log("✅ Unstake transaction:", unstakeSig);
+    console.log(" Unstake transaction:", unstakeSig);
     
     await sleep(3000);
     
@@ -257,20 +251,13 @@ async function main() {
     console.log(`- Vault reduced: ${vaultReduced} (expected: ${unstakeAmount})`);
     
     if (tokensBurned === unstakeAmount && vaultReduced === unstakeAmount) {
-      console.log("✅ Unstaking successful!");
+      console.log(" Unstaking successful!");
     } else {
-      console.log("❌ Unstaking verification failed");
+      console.log(" Unstaking verification failed");
     }
     
-    console.log("\n🎉 All tests completed successfully!");
-    console.log("\n📊 Final Summary:");
-    console.log("- Stake/Unstake functionality: WORKING");
-    console.log("- Token mint/burn: WORKING");
-    console.log("- SOL vault management: WORKING");
-    console.log("- Multi-user capability: READY");
-    
   } catch (error) {
-    console.error("❌ Test failed:", error.message);
+    console.error(" Test failed:", error.message);
     console.error("Stack trace:", error.stack);
   }
 }

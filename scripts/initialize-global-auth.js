@@ -10,6 +10,7 @@ import {
 import fs from 'fs';
 import os from 'os';
 
+// your program id after deployment 
 const PROGRAM_ID = new PublicKey("your-program-id");
 
 const connection = new Connection("your-rpc-url", "confirmed");
