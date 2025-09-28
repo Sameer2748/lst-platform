@@ -18,29 +18,25 @@ import {
     ASSOCIATED_TOKEN_PROGRAM_ID
   } from "@solana/spl-token";
   
-  // Contract Configuration - UPDATED WITH YOUR WORKING ADDRESSES
   export const CONTRACT_CONFIG = {
     PROGRAM_ID: new PublicKey("AFU3sLSc7vXEEuBbEnZn2R3XnoFXryRaPqDEaoaJri9d"),
     SAMSOL_MINT: new PublicKey("4c1zJyLyTGep3fuP4ZdPPc7PJqupDvyGD3hzSUfQBoDX"),
     GLOBAL_MINT_AUTHORITY_PDA: new PublicKey("5Hg56BGr1u9xvwGPaLDWqrQ9BZ8Yk5eoPcmCyDXysWK4"),
   };
   
-  // Instruction discriminators from your IDL
   const INSTRUCTION_DISCRIMINATORS = {
     CREATE_USER_STAKE: Buffer.from([179, 34, 161, 2, 154, 58, 57, 29]),
     STAKE: Buffer.from([206, 176, 202, 18, 200, 209, 179, 108]),
     UNSTAKE: Buffer.from([90, 95, 107, 42, 205, 124, 50, 225]),
   };
   
-  // Utility function to serialize u64 for browser environment
   function serializeU64(value: number): Uint8Array {
     const buffer = new Uint8Array(8);
     const view = new DataView(buffer.buffer);
-    view.setBigUint64(0, BigInt(value), true); // true for little-endian
+    view.setBigUint64(0, BigInt(value), true); 
     return buffer;
   }
   
-  // Get user stake PDA
   export function getUserStakePDA(userPublicKey: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("user_stake"), userPublicKey.toBuffer()],
@@ -48,7 +44,6 @@ import {
     );
   }
   
-  // Get user vault PDA
   export function getUserVaultPDA(userPublicKey: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("user_vault"), userPublicKey.toBuffer()],
@@ -56,7 +51,6 @@ import {
     );
   }
   
-  // Check if user stake account exists
   export async function checkUserStakeAccount(
     connection: Connection,
     userPublicKey: PublicKey
@@ -66,7 +60,6 @@ import {
     return accountInfo !== null && accountInfo.owner.equals(CONTRACT_CONFIG.PROGRAM_ID);
   }
   
-  // Get user's SamSOL token balance
   export async function getSamSOLBalance(
     connection: Connection,
     userPublicKey: PublicKey
@@ -74,10 +67,10 @@ import {
     try {
       const userTokenAccount = await getOrCreateAssociatedTokenAccount(
         connection,
-        Keypair.generate(), // Dummy keypair, won't be used for read operations
+        Keypair.generate(), 
         CONTRACT_CONFIG.SAMSOL_MINT,
         userPublicKey,
-        false, // Don't create if doesn't exist
+        false, 
         "confirmed",
         undefined,
         TOKEN_PROGRAM_ID,
@@ -110,7 +103,7 @@ import {
         return 0;
       }
       
-      // Read staked amount from account data (after discriminator + owner)
+
       const stakedAmountLamports = accountInfo.data.readBigUInt64LE(40);
       return Number(stakedAmountLamports) / LAMPORTS_PER_SOL;
     } catch (error) {
@@ -119,7 +112,7 @@ import {
     }
   }
   
-  // Helper function to create associated token account if needed
+
   export async function createTokenAccountIfNeeded(
     connection: Connection,
     payer: PublicKey,
@@ -133,13 +126,13 @@ import {
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
   
-    // Check if account already exists
+
     const accountInfo = await connection.getAccountInfo(tokenAccountAddress);
     if (accountInfo) {
       return { instruction: null, address: tokenAccountAddress };
     }
   
-    // Create instruction to create the token account
+
     const createTokenAccountIx = createAssociatedTokenAccountInstruction(
       payer, // payer
       tokenAccountAddress, // ata
@@ -152,7 +145,7 @@ import {
     return { instruction: createTokenAccountIx, address: tokenAccountAddress };
   }
   
-  // Create user stake account transaction
+
   export async function createUserStakeAccountTransaction(
     userPublicKey: PublicKey
   ): Promise<Transaction> {
@@ -175,7 +168,7 @@ import {
     return new Transaction().add(instruction);
   }
   
-  // Create stake transaction
+
   export async function createStakeTransaction(
     connection: Connection,
     userPublicKey: PublicKey,
@@ -185,7 +178,7 @@ import {
     const [userStakePDA] = getUserStakePDA(userPublicKey);
     const [userVaultPDA] = getUserVaultPDA(userPublicKey);
     
-    // Get user's token account address (don't try to read it yet)
+
     const userTokenAccountAddress = await getAssociatedTokenAddress(
       CONTRACT_CONFIG.SAMSOL_MINT,
       userPublicKey,
@@ -221,7 +214,7 @@ import {
     return new Transaction().add(instruction);
   }
   
-  // Create unstake transaction
+
   export async function createUnstakeTransaction(
     connection: Connection,
     userPublicKey: PublicKey,
@@ -233,7 +226,7 @@ import {
     const [userStakePDA] = getUserStakePDA(userPublicKey);
     const [userVaultPDA] = getUserVaultPDA(userPublicKey);
     
-    // Get user's token account address
+
     const userTokenAccountAddress = await getAssociatedTokenAddress(
       CONTRACT_CONFIG.SAMSOL_MINT,
       userPublicKey,
