@@ -1,37 +1,23 @@
 # Use official Node.js image
-FROM node:20-bullseye AS builder
-
+FROM node:20-bullseye
+# Set working directory inside container
 WORKDIR /app
 
-# Copy only package manifests first (better cache)
+# Copy package.json and package-lock.json first
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
-# Copy rest of project
+# Copy the rest of your code and .env
 COPY . .
+COPY .env .env
 
 # Build the Next.js app
 RUN npm run build
 
-# ---
-
-# Production image
-FROM node:20-bullseye AS runner
-
-WORKDIR /app
-
-# Copy only production deps
-COPY package*.json ./
-RUN npm ci --omit=dev --legacy-peer-deps
-
-# Copy built files from builder
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-
 # Expose Next.js default port
 EXPOSE 3000
 
-# Start Next.js in production
+# Start the Next.js app in production mode
 CMD ["npm", "start"]
