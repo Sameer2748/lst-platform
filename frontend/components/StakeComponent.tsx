@@ -11,8 +11,6 @@ import {
   createUserStakeAccountTransaction, 
   createStakeTransaction,
   getStakedAmount,
-  getUserStakePDA,
-  getUserVaultPDA,
   createTokenAccountIfNeeded
 } from "@/utils/contractUtils";
 
@@ -224,8 +222,6 @@ const StakeComponent = () => {
         let txId: string = '';
 
         try {
-            let transaction: Transaction;
-
             // Check if user needs to create stake account first
             if (!hasStakeAccount) {
                 console.log("Creating user stake account...");
@@ -294,7 +290,7 @@ const StakeComponent = () => {
             }
 
             // Now create the stake transaction
-            transaction = await createStakeTransaction(connection, publicKey, stakeAmountSOL);
+            const transaction = await createStakeTransaction(connection, publicKey, stakeAmountSOL);
             
             // Get a fresh blockhash for the stake transaction
             const { blockhash: stakeBlockhash, lastValidBlockHeight: stakeHeight } = await connection.getLatestBlockhash('finalized');
@@ -338,13 +334,14 @@ const StakeComponent = () => {
             setInputAmount('');
             await fetchBalances();
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Staking error:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             
-            if (error.message?.includes('User rejected') || error.message?.includes('User denied')) {
+            if (errorMessage.includes('User rejected') || errorMessage.includes('User denied')) {
                 toast.error("Transaction cancelled by user");
                 setCurrentStatus('cancelled');
-            } else if (error.message?.includes('already been processed')) {
+            } else if (errorMessage.includes('already been processed')) {
                 console.log("Transaction already processed, checking if it succeeded...");
                 
                 // Wait a bit and then check balances to see if transaction actually went through
@@ -361,7 +358,7 @@ const StakeComponent = () => {
                     setCurrentStatus('failed');
                     toast.error("Transaction was processed but status unclear. Please check your balance.");
                 }
-            } else if (error.message?.includes('Blockhash not found') || error.message?.includes('Confirmation timeout')) {
+            } else if (errorMessage.includes('Blockhash not found') || errorMessage.includes('Confirmation timeout')) {
                 console.log("Transaction may have succeeded, checking...");
                 
                 // For timeout/blockhash errors, check if transaction actually went through
@@ -378,7 +375,7 @@ const StakeComponent = () => {
                             setCurrentStatus('failed');
                             toast.error("Transaction may have failed. Please try again.");
                         }
-                    } catch (statusError) {
+                    } catch {
                         setCurrentStatus('failed');
                         toast.error("Transaction status unclear. Please check your balance and try again if needed.");
                     }
@@ -388,7 +385,7 @@ const StakeComponent = () => {
                 }
             } else {
                 setCurrentStatus('failed');
-                toast.error(`Staking failed: ${error.message || 'Unknown error'}`);
+                toast.error(`Staking failed: ${errorMessage}`);
             }
             
             // Always refresh balances to get current state
@@ -455,7 +452,7 @@ const StakeComponent = () => {
             {!hasStakeAccount && (
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                     <p className="text-blue-800 text-sm">
-                        <strong>Note:</strong> This is your first time staking. We'll create your stake account automatically.
+                        <strong>Note:</strong> This is your first time staking. We&apos;ll create your stake account automatically.
                     </p>
                 </div>
             )}

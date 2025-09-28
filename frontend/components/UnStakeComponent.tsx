@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { toast } from "sonner";
 import Image from 'next/image';
 import { CheckCircle, AlertCircle, Clock, XCircle } from "lucide-react";
@@ -219,10 +219,6 @@ const UnStakeComponent = () => {
         let txId: string = '';
 
         try {
-            // Store initial balances to compare later
-            const initialSamsolBalance = samsolBalance;
-            const initialSolBalance = solBalance;
-
             // Create unstake transaction
             console.log("Creating unstake transaction...");
             const transaction = await createUnstakeTransaction(connection, publicKey, unstakeAmountTokens);
@@ -269,13 +265,14 @@ const UnStakeComponent = () => {
             setInputAmount('');
             await fetchBalances();
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Unstaking error:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             
-            if (error.message?.includes('User rejected') || error.message?.includes('User denied')) {
+            if (errorMessage.includes('User rejected') || errorMessage.includes('User denied')) {
                 toast.error("Transaction cancelled by user");
                 setCurrentStatus('cancelled');
-            } else if (error.message?.includes('already been processed')) {
+            } else if (errorMessage.includes('already been processed')) {
                 console.log("Transaction already processed, checking if it succeeded...");
                 
                 // Wait a bit and then check balances to see if transaction actually went through
@@ -292,7 +289,7 @@ const UnStakeComponent = () => {
                     setCurrentStatus('failed');
                     toast.error("Transaction was processed but status unclear. Please check your balance.");
                 }
-            } else if (error.message?.includes('Blockhash not found') || error.message?.includes('Confirmation timeout')) {
+            } else if (errorMessage.includes('Blockhash not found') || errorMessage.includes('Confirmation timeout')) {
                 console.log("Transaction may have succeeded, checking...");
                 
                 // For timeout/blockhash errors, check if transaction actually went through
@@ -309,7 +306,7 @@ const UnStakeComponent = () => {
                             setCurrentStatus('failed');
                             toast.error("Transaction may have failed. Please try again.");
                         }
-                    } catch (statusError) {
+                    } catch {
                         setCurrentStatus('failed');
                         toast.error("Transaction status unclear. Please check your balance and try again if needed.");
                     }
@@ -317,12 +314,12 @@ const UnStakeComponent = () => {
                     setCurrentStatus('failed');
                     toast.error("Transaction expired. Please try again.");
                 }
-            } else if (error.message?.includes('InsufficientStake')) {
+            } else if (errorMessage.includes('InsufficientStake')) {
                 setCurrentStatus('failed');
                 toast.error("You don't have enough staked SOL to unstake this amount");
             } else {
                 setCurrentStatus('failed');
-                toast.error(`Unstaking failed: ${error.message || 'Unknown error'}`);
+                toast.error(`Unstaking failed: ${errorMessage}`);
             }
             
             // Always refresh balances to get current state
@@ -405,7 +402,7 @@ const UnStakeComponent = () => {
             {samsolBalance === 0 && (
                 <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
                     <p className="text-gray-600 text-sm">
-                        You don't have any SamSOL tokens to unstake. Start by staking some SOL first.
+                        You don&apos;t have any SamSOL tokens to unstake. Start by staking some SOL first.
                     </p>
                 </div>
             )}
