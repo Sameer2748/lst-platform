@@ -73,7 +73,7 @@ const StatusPopup: React.FC<StatusPopupProps> = ({ status, txnId, amount, onClos
     const config = getStatusConfig(status);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50">
             <div className={`${config.bgColor} ${config.borderColor} border-2 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl`}>
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
@@ -160,6 +160,35 @@ const StakeComponent = () => {
         setLoading(false);
     }, [publicKey, connection]);
 
+    // Separate function to refresh balances without showing loading state
+    const refreshBalancesQuietly = useCallback(async () => {
+        if (!publicKey) return;
+        
+        try {
+            // Fetch SOL balance
+            const balance = await connection.getBalance(publicKey);
+            setSolBalance(balance / LAMPORTS_PER_SOL);
+
+            // Fetch SamSOL balance
+            const { balance: samsolBal } = await getSamSOLBalance(connection, publicKey);
+            setSamsolBalance(samsolBal);
+
+            // Check if user has stake account
+            const hasAccount = await checkUserStakeAccount(connection, publicKey);
+            setHasStakeAccount(hasAccount);
+
+            // Fetch staked amount if account exists
+            if (hasAccount) {
+                const staked = await getStakedAmount(connection, publicKey);
+                setStakedAmount(staked);
+            }
+
+        } catch (err) {
+            console.error("Error refreshing balances:", err);
+            // Don't show error toast for quiet refresh
+        }
+    }, [publicKey, connection]);
+
     useEffect(() => {
         if (publicKey) {
             fetchBalances();
@@ -184,12 +213,15 @@ const StakeComponent = () => {
         }
     };
 
-    const handleClosePopup = () => {
+    const handleClosePopup = async () => {
         setShowStatusPopup(false);
         setCurrentTxnId('');
         setCurrentStatus('pending');
-        // Refresh balances after transaction
-        fetchBalances();
+        
+        // Only refresh balances if transaction was successful
+        if (currentStatus === 'completed') {
+            await refreshBalancesQuietly();
+        }
     };
 
     const handleStake = async () => {
@@ -330,9 +362,9 @@ const StakeComponent = () => {
             setCurrentStatus('completed');
             toast.success(`Successfully staked ${stakeAmountSOL} SOL!`);
             
-            // Clear input and refresh data
+            // Clear input and refresh balances quietly
             setInputAmount('');
-            await fetchBalances();
+            await refreshBalancesQuietly();
 
         } catch (error: unknown) {
             console.error("Staking error:", error);
@@ -346,14 +378,12 @@ const StakeComponent = () => {
                 
                 // Wait a bit and then check balances to see if transaction actually went through
                 await new Promise(resolve => setTimeout(resolve, 3000));
-                await fetchBalances();
-                
-                // If balances changed, transaction was successful despite the error
                 const newSamsolBalance = await getSamSOLBalance(connection, publicKey);
                 if (newSamsolBalance.balance > samsolBalance) {
                     setCurrentStatus('completed');
                     toast.success(`Transaction completed! Successfully staked SOL.`);
                     setInputAmount('');
+                    await refreshBalancesQuietly();
                 } else {
                     setCurrentStatus('failed');
                     toast.error("Transaction was processed but status unclear. Please check your balance.");
@@ -370,7 +400,7 @@ const StakeComponent = () => {
                             setCurrentStatus('completed');
                             toast.success(`Transaction completed! Successfully staked SOL.`);
                             setInputAmount('');
-                            await fetchBalances();
+                            await refreshBalancesQuietly();
                         } else {
                             setCurrentStatus('failed');
                             toast.error("Transaction may have failed. Please try again.");
@@ -387,9 +417,6 @@ const StakeComponent = () => {
                 setCurrentStatus('failed');
                 toast.error(`Staking failed: ${errorMessage}`);
             }
-            
-            // Always refresh balances to get current state
-            await fetchBalances();
         } finally {
             setStakeStarted(false);
         }

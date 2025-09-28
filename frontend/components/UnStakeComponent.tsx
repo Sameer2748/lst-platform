@@ -5,11 +5,11 @@ import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { toast } from "sonner";
 import Image from 'next/image';
 import { CheckCircle, AlertCircle, Clock, XCircle } from "lucide-react";
-import { 
-  getSamSOLBalance, 
-  checkUserStakeAccount, 
-  createUnstakeTransaction,
-  getStakedAmount 
+import {
+    getSamSOLBalance,
+    checkUserStakeAccount,
+    createUnstakeTransaction,
+    getStakedAmount
 } from "@/utils/contractUtils";
 
 // Transaction status types
@@ -71,7 +71,7 @@ const StatusPopup: React.FC<StatusPopupProps> = ({ status, txnId, amount, onClos
     const config = getStatusConfig(status);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
             <div className={`${config.bgColor} ${config.borderColor} border-2 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl`}>
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
@@ -112,7 +112,7 @@ const UnStakeComponent = () => {
     const [loading, setLoading] = useState(false);
     const [inputAmount, setInputAmount] = useState('');
     const [unstakeLoading, setUnstakeLoading] = useState(false);
-    
+
     // Transaction popup states
     const [showStatusPopup, setShowStatusPopup] = useState(false);
     const [currentTxnId, setCurrentTxnId] = useState<string>('');
@@ -122,7 +122,7 @@ const UnStakeComponent = () => {
         process.env.NEXT_PUBLIC_SOLANA_RPC || "https://devnet.helius-rpc.com/?api-key=d634c70f-6302-40db-9292-72c25d3dda26",
         "confirmed"
     ), []);
-    
+
     const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg";
 
     const fetchBalances = useCallback(async () => {
@@ -159,6 +159,35 @@ const UnStakeComponent = () => {
         }
     }, [publicKey, connection]);
 
+    // Add this function after fetchBalances
+    const refreshBalancesQuietly = useCallback(async () => {
+        if (!publicKey) return;
+
+        try {
+            // Fetch SOL balance
+            const balance = await connection.getBalance(publicKey);
+            setSolBalance(balance / LAMPORTS_PER_SOL);
+
+            // Fetch SamSOL balance
+            const { balance: samsolBal } = await getSamSOLBalance(connection, publicKey);
+            setSamsolBalance(samsolBal);
+
+            // Check if user has stake account
+            const hasAccount = await checkUserStakeAccount(connection, publicKey);
+            setHasStakeAccount(hasAccount);
+
+            // Fetch staked amount if account exists
+            if (hasAccount) {
+                const staked = await getStakedAmount(connection, publicKey);
+                setStakedAmount(staked);
+            }
+
+        } catch (err) {
+            console.error("Error refreshing balances:", err);
+            // Don't show error toast for quiet refresh
+        }
+    }, [publicKey, connection]);
+
     useEffect(() => {
         if (publicKey) {
             fetchBalances();
@@ -169,13 +198,17 @@ const UnStakeComponent = () => {
         setInputAmount(samsolBalance.toString());
     };
 
-    const handleClosePopup = () => {
+    const handleClosePopup = async () => {
         setShowStatusPopup(false);
         setCurrentTxnId('');
         setCurrentStatus('pending');
-        // Refresh balances after transaction
-        fetchBalances();
+
+        // Only refresh balances if transaction was successful
+        if (currentStatus === 'completed') {
+            await refreshBalancesQuietly();
+        }
     };
+
 
     // Get balance for display
     const getBalance = () => {
@@ -222,7 +255,7 @@ const UnStakeComponent = () => {
             // Create unstake transaction
             console.log("Creating unstake transaction...");
             const transaction = await createUnstakeTransaction(connection, publicKey, unstakeAmountTokens);
-            
+
             // Get fresh blockhash
             const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
             transaction.recentBlockhash = blockhash;
@@ -231,13 +264,13 @@ const UnStakeComponent = () => {
             console.log("Signing and sending unstake transaction...");
             // Sign and send transaction
             const signedTransaction = await signTransaction(transaction);
-            
+
             txId = await connection.sendRawTransaction(signedTransaction.serialize(), {
                 skipPreflight: false,
                 preflightCommitment: 'confirmed',
                 maxRetries: 3
             });
-            
+
             setCurrentTxnId(txId);
             setCurrentStatus('pending');
 
@@ -251,34 +284,35 @@ const UnStakeComponent = () => {
                     blockhash,
                     lastValidBlockHeight
                 }, 'confirmed'),
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
                 )
             ]);
 
             console.log("Transaction confirmed:", confirmationResult);
-            
+
             setCurrentStatus('completed');
             toast.success(`Successfully unstaked ${unstakeAmountTokens} SamSOL for SOL!`);
-            
+
             // Clear input and refresh data
+            // Clear input and refresh balances quietly
             setInputAmount('');
-            await fetchBalances();
+            await refreshBalancesQuietly();
 
         } catch (error: unknown) {
             console.error("Unstaking error:", error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            
+
             if (errorMessage.includes('User rejected') || errorMessage.includes('User denied')) {
                 toast.error("Transaction cancelled by user");
                 setCurrentStatus('cancelled');
             } else if (errorMessage.includes('already been processed')) {
                 console.log("Transaction already processed, checking if it succeeded...");
-                
+
                 // Wait a bit and then check balances to see if transaction actually went through
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 await fetchBalances();
-                
+
                 // If balances changed, transaction was successful despite the error
                 const newSamsolBalance = await getSamSOLBalance(connection, publicKey);
                 if (newSamsolBalance.balance < samsolBalance) {
@@ -291,7 +325,7 @@ const UnStakeComponent = () => {
                 }
             } else if (errorMessage.includes('Blockhash not found') || errorMessage.includes('Confirmation timeout')) {
                 console.log("Transaction may have succeeded, checking...");
-                
+
                 // For timeout/blockhash errors, check if transaction actually went through
                 if (txId) {
                     try {
@@ -321,9 +355,9 @@ const UnStakeComponent = () => {
                 setCurrentStatus('failed');
                 toast.error(`Unstaking failed: ${errorMessage}`);
             }
-            
+
             // Always refresh balances to get current state
-            await fetchBalances();
+            await refreshBalancesQuietly();
         } finally {
             setUnstakeLoading(false);
         }
@@ -393,7 +427,7 @@ const UnStakeComponent = () => {
             {!hasStakeAccount && samsolBalance > 0 && (
                 <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
                     <p className="text-yellow-800 text-sm">
-                        <strong>Warning:</strong> No stake account found. You may have SamSOL from external sources. 
+                        <strong>Warning:</strong> No stake account found. You may have SamSOL from external sources.
                         Unstaking requires an active stake account.
                     </p>
                 </div>
@@ -435,7 +469,7 @@ const UnStakeComponent = () => {
                             <div className="flex items-center justify-between">
                                 {/* Token Display */}
                                 <div className="flex text-black items-center gap-3">
-                                    <Image 
+                                    <Image
                                         className="w-10 h-10 rounded-full"
                                         src={samsolImageUrl}
                                         alt="SamSOL"
@@ -533,8 +567,8 @@ const UnStakeComponent = () => {
                         {/* Note */}
                         <div className="mt-8 p-4 bg-gray-50 rounded-xl">
                             <p className="text-sm text-gray-600">
-                                <strong className="text-gray-800">NOTE:</strong> This is direct unstaking from your personal stake account. 
-                                You get exactly 1 SOL for every 1 SamSOL token with no fees or slippage. 
+                                <strong className="text-gray-800">NOTE:</strong> This is direct unstaking from your personal stake account.
+                                You get exactly 1 SOL for every 1 SamSOL token with no fees or slippage.
                                 Your original staked SOL is returned to you instantly.
                             </p>
                         </div>
@@ -660,7 +694,7 @@ const UnStakeComponent = () => {
                         {/* Note - Mobile */}
                         <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-gray-50 rounded-xl">
                             <p className="text-xs sm:text-sm text-gray-600">
-                                <strong className="text-gray-800">NOTE:</strong> Direct unstaking from your personal stake account. 
+                                <strong className="text-gray-800">NOTE:</strong> Direct unstaking from your personal stake account.
                                 1:1 exchange rate with no fees or slippage.
                             </p>
                         </div>
