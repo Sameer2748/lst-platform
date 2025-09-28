@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  nextjs-app:
+    build: .
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+      - NEXT_PUBLIC_SOLANA_RPC=${NEXT_PUBLIC_SOLANA_RPC:-https://devnet.helius-rpc.com/?api-key=d634c70f-6302-40db-9292-72c25d3dda26}
+    restart: unless-stopped
+    container_name: solana-staking-app
