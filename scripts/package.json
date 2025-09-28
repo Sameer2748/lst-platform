@@ -1,0 +1,22 @@
+{
+  "name": "script",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@project-serum/anchor": "^0.26.0",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "bn.js": "^5.2.2",
+    "bs58": "^6.0.0",
+    "litesvm": "^0.3.3"
+  }
+}
