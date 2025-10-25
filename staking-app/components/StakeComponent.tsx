@@ -151,18 +151,23 @@ const StakeComponent = () => {
 
   const handleUseMax = () => {
     if (solBalance) {
+      // Reserve 0.01 SOL for gas fees
       const maxStake = Math.max(0, solBalance - 0.01);
-      setInputAmount(maxStake.toString());
+      setInputAmount(maxStake.toFixed(5));
       setInputError(false);
     }
   };
 
   const handleInputChange = (value: string) => {
     setInputAmount(value);
-    if (solBalance !== null && parseFloat(value) > solBalance) {
-      setInputError(true);
-    } else {
-      setInputError(false);
+    if (solBalance !== null) {
+      const inputValue = parseFloat(value);
+      // Check if amount exceeds balance OR leaves less than 0.005 SOL for gas
+      if (inputValue > solBalance || (solBalance - inputValue) < 0.005) {
+        setInputError(true);
+      } else {
+        setInputError(false);
+      }
     }
   };
 
@@ -211,6 +216,12 @@ const StakeComponent = () => {
 
     if (solBalance && stakeAmountSOL > solBalance) {
       console.log("Insufficient SOL balance");
+      return;
+    }
+
+    // Ensure user keeps at least 0.005 SOL for gas fees
+    if (solBalance && (solBalance - stakeAmountSOL) < 0.005) {
+      console.log("Must keep at least 0.005 SOL for gas fees");
       return;
     }
 
@@ -434,7 +445,11 @@ const StakeComponent = () => {
               />
             </View>
             {inputError && (
-              <Text style={styles.errorText}>Amount exceeds balance</Text>
+              <Text style={styles.errorText}>
+                {solBalance && parseFloat(inputAmount) > solBalance 
+                  ? 'Amount exceeds balance' 
+                  : 'Must keep at least 0.005 SOL for gas fees'}
+              </Text>
             )}
           </View>
 
@@ -457,7 +472,7 @@ const StakeComponent = () => {
               </View>
 
               <Text style={[styles.amountInput, styles.disabledInput]}>
-                {inputAmount ? parseFloat(inputAmount).toFixed(1) : '0'}
+                {inputAmount ? parseFloat(inputAmount).toFixed(4) : '0.0'}
               </Text>
             </View>
           </View>
@@ -676,6 +691,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     minWidth: 120,
+    maxWidth: 200,
+    flex: 1,
     color: '#9ca3af',
   },
   inputError: {

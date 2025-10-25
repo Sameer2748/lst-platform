@@ -145,7 +145,12 @@ const UnStakeComponent = () => {
   }, [showFloatingButton, currentStatus]);
 
   const handleUseMax = () => {
-    setInputAmount(samsolBalance.toString());
+    // Only allow max if user has enough SOL for gas fees (at least 0.005 SOL)
+    if (solBalance && solBalance >= 0.005) {
+      setInputAmount(samsolBalance.toFixed(4));
+    } else {
+      console.log("Need at least 0.005 SOL for gas fees");
+    }
   };
 
   const handleClosePopup = async () => {
@@ -198,6 +203,12 @@ const UnStakeComponent = () => {
 
     if (!hasStakeAccount) {
       console.log("No stake account found");
+      return;
+    }
+
+    // Ensure user has enough SOL for gas fees
+    if (solBalance === null || solBalance < 0.005) {
+      console.log("Need at least 0.005 SOL for transaction fees");
       return;
     }
 
@@ -382,7 +393,12 @@ const UnStakeComponent = () => {
 
             {inputAmount && parseFloat(inputAmount) > samsolBalance && (
               <Text style={styles.errorText}>
-                Insufficient balance. Max: {samsolBalance.toFixed(6)} SamSOL
+                Insufficient balance. Max: {samsolBalance.toFixed(4)} SamSOL
+              </Text>
+            )}
+            {solBalance !== null && solBalance < 0.005 && (
+              <Text style={styles.errorText}>
+                Need at least 0.005 SOL for gas fees
               </Text>
             )}
           </View>
@@ -397,7 +413,8 @@ const UnStakeComponent = () => {
               !inputAmount || 
               parseFloat(inputAmount) <= 0 || 
               parseFloat(inputAmount) > samsolBalance || 
-              !hasStakeAccount
+              !hasStakeAccount ||
+              (solBalance !== null && solBalance < 0.005)
             }
             onPress={handleUnstake}
             style={[
@@ -409,7 +426,8 @@ const UnStakeComponent = () => {
                !inputAmount || 
                parseFloat(inputAmount) <= 0 || 
                parseFloat(inputAmount) > samsolBalance || 
-               !hasStakeAccount) && styles.disabledUnstakeButton
+               !hasStakeAccount ||
+               (solBalance !== null && solBalance < 0.005)) && styles.disabledUnstakeButton
             ]}
           >
             <Text style={styles.unstakeButtonText}>
@@ -660,6 +678,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     minWidth: 120,
+    maxWidth: 200,
+    flex: 1,
     color: '#9ca3af',
   },
   errorText: {
