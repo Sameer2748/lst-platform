@@ -195,7 +195,12 @@ const UnStakeComponent = () => {
     }, [publicKey, fetchBalances]);
 
     const handleUseMax = () => {
-        setInputAmount(samsolBalance.toString());
+        // Only allow max if user has enough SOL for gas fees (at least 0.005 SOL)
+        if (solBalance && solBalance >= 0.005) {
+            setInputAmount(samsolBalance.toFixed(4));
+        } else {
+            toast.error("Need at least 0.005 SOL for gas fees");
+        }
     };
 
     const handleClosePopup = async () => {
@@ -242,6 +247,12 @@ const UnStakeComponent = () => {
 
         if (!hasStakeAccount) {
             toast.error("No stake account found. Please stake first.");
+            return;
+        }
+
+        // Ensure user has enough SOL for gas fees
+        if (solBalance === null || solBalance < 0.005) {
+            toast.error("Need at least 0.005 SOL for transaction fees");
             return;
         }
 
@@ -497,13 +508,18 @@ const UnStakeComponent = () => {
                         {/* Balance Error */}
                         {inputAmount && parseFloat(inputAmount) > samsolBalance && (
                             <p className="text-sm text-red-500 px-2">
-                                Insufficient balance. Max: {samsolBalance.toFixed(6)} {getSymbol()}
+                                Insufficient balance. Max: {samsolBalance.toFixed(4)} {getSymbol()}
+                            </p>
+                        )}
+                        {solBalance !== null && solBalance < 0.005 && (
+                            <p className="text-sm text-red-500 px-2">
+                                Need at least 0.005 SOL for gas fees
                             </p>
                         )}
 
                         {/* Unstake Button */}
                         <button
-                            disabled={unstakeLoading || samsolBalance === 0 || !inputAmount || parseFloat(inputAmount) <= 0 || parseFloat(inputAmount) > samsolBalance || !hasStakeAccount}
+                            disabled={unstakeLoading || samsolBalance === 0 || !inputAmount || parseFloat(inputAmount) <= 0 || parseFloat(inputAmount) > samsolBalance || !hasStakeAccount || (solBalance !== null && solBalance < 0.005)}
                             onClick={handleUnstake}
                             className="w-full h-14 rounded-3xl bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 text-white text-md cursor-pointer font-semibold transition-colors disabled:cursor-not-allowed"
                         >
@@ -624,13 +640,18 @@ const UnStakeComponent = () => {
                         {/* Balance Error - Mobile */}
                         {inputAmount && parseFloat(inputAmount) > samsolBalance && (
                             <p className="text-sm text-red-500 mb-4">
-                                Insufficient balance. Max: {samsolBalance.toFixed(6)} {getSymbol()}
+                                Insufficient balance. Max: {samsolBalance.toFixed(4)} {getSymbol()}
+                            </p>
+                        )}
+                        {solBalance !== null && solBalance < 0.005 && (
+                            <p className="text-sm text-red-500 mb-4">
+                                Need at least 0.005 SOL for gas fees
                             </p>
                         )}
 
                         {/* Unstake Button - Mobile */}
                         <button
-                            disabled={unstakeLoading || samsolBalance === 0 || !inputAmount || parseFloat(inputAmount) <= 0 || parseFloat(inputAmount) > samsolBalance || !hasStakeAccount}
+                            disabled={unstakeLoading || samsolBalance === 0 || !inputAmount || parseFloat(inputAmount) <= 0 || parseFloat(inputAmount) > samsolBalance || !hasStakeAccount || (solBalance !== null && solBalance < 0.005)}
                             onClick={handleUnstake}
                             className="w-full h-14 rounded-3xl bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 text-white text-lg font-semibold transition-colors mb-4 disabled:cursor-not-allowed"
                         >

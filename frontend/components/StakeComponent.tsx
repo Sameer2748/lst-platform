@@ -197,19 +197,23 @@ const StakeComponent = () => {
 
     const handleUseMax = () => {
         if (solBalance) {
-            // Leave some SOL for fees (0.01 SOL)
+            // Reserve 0.01 SOL for gas fees
             const maxStake = Math.max(0, solBalance - 0.01);
-            setInputAmount(maxStake.toString());
+            setInputAmount(maxStake.toFixed(5));
             setInputError(false);
         }
     };
 
     const handleInputChange = (value: string) => {
         setInputAmount(value);
-        if (solBalance !== null && parseFloat(value) > solBalance) {
-            setInputError(true);
-        } else {
-            setInputError(false);
+        if (solBalance !== null) {
+            const inputValue = parseFloat(value);
+            // Check if amount exceeds balance OR leaves less than 0.005 SOL for gas
+            if (inputValue > solBalance || (solBalance - inputValue) < 0.005) {
+                setInputError(true);
+            } else {
+                setInputError(false);
+            }
         }
     };
 
@@ -244,6 +248,12 @@ const StakeComponent = () => {
 
         if (solBalance && stakeAmountSOL > solBalance) {
             toast.error("Insufficient SOL balance");
+            return;
+        }
+
+        // Ensure user keeps at least 0.005 SOL for gas fees
+        if (solBalance && (solBalance - stakeAmountSOL) < 0.005) {
+            toast.error("Must keep at least 0.005 SOL for gas fees");
             return;
         }
 
@@ -524,7 +534,11 @@ const StakeComponent = () => {
                             </div>
                         </div>
                         {inputError && (
-                            <p className="text-sm text-right text-red-500 px-2">Amount cannot be more than balance</p>
+                            <p className="text-sm text-right text-red-500 px-2">
+                                {solBalance && parseFloat(inputAmount) > solBalance 
+                                    ? 'Amount cannot be more than balance' 
+                                    : 'Must keep at least 0.005 SOL for gas fees'}
+                            </p>
                         )}
                     </div>
 
@@ -550,7 +564,7 @@ const StakeComponent = () => {
                             <div className="text-right text-gray-400">
                                 <input
                                     type="number"
-                                    value={(parseFloat(inputAmount) || 0)}
+                                    value={(parseFloat(inputAmount) || 0).toFixed(4)}
                                     className="text-4xl font-bold text-right bg-transparent border-none outline-none md:w-44 lg:w-46 xl:w-86"
                                     placeholder="0.0"
                                     disabled
@@ -602,7 +616,11 @@ const StakeComponent = () => {
                             </div>
                         </div>
                         {inputError && (
-                            <p className="text-sm text-right text-red-500 mt-2">Amount cannot be more than balance</p>
+                            <p className="text-sm text-right text-red-500 mt-2">
+                                {solBalance && parseFloat(inputAmount) > solBalance 
+                                    ? 'Amount cannot be more than balance' 
+                                    : 'Must keep at least 0.005 SOL for gas fees'}
+                            </p>
                         )}
                     </div>
 
@@ -631,7 +649,7 @@ const StakeComponent = () => {
                             <div className="text-right">
                                 <input
                                     type="number"
-                                    value={(parseFloat(inputAmount) || 0)}
+                                    value={(parseFloat(inputAmount) || 0).toFixed(4)}
                                     className="text-2xl font-bold text-right bg-transparent border-none outline-none w-42 text-gray-700"
                                     placeholder="0.0"
                                     disabled
