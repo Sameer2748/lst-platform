@@ -123,7 +123,7 @@ const UnStakeComponent = () => {
         "confirmed"
     ), []);
 
-    const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg";
+    const samsolImageUrl = "https://api.phantom.app/image-proxy/?image=https%3A%2F%2Fsolana-launchpad-assets.s3.ap-south-1.amazonaws.com%2Fuploads%2F1759036260063-avatar.png&anim=false&fit=cover&width=256&height=256";
 
     const fetchBalances = useCallback(async () => {
         if (!publicKey) {
