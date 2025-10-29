@@ -126,8 +126,8 @@ const StakeComponent = () => {
         "confirmed"
     ), []);
 
-    const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg";
-    const solImageUrl = "https://api.phantom.app/image-proxy/?image=https%3A%2F%2Fsolana-launchpad-assets.s3.ap-south-1.amazonaws.com%2Fuploads%2F1759036260063-avatar.png&anim=false&fit=cover&width=256&height=256";
+    const samsolImageUrl = "https://api.phantom.app/image-proxy/?image=https%3A%2F%2Fsolana-launchpad-assets.s3.ap-south-1.amazonaws.com%2Fuploads%2F1759036260063-avatar.png&anim=false&fit=cover&width=256&height=256";
+    const solImageUrl = "https://imgs.search.brave.com/YRcgd3-E4u7oewRc-ZSSbJTG3hRm20spgyUM-1BYYeU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/YnJhbmRmZXRjaC5p/by9pZGUwTlV1VEhP/L3cvNDAwL2gvNDAw/L3RoZW1lL2Rhcmsv/aWNvbi5qcGVnP2M9/MWJ4aWQ2NE11cDdh/Y3pld1NBWU1YJnQ9/MTY2NzY0NDU5NjQ2/NQ";
 
     // Fetch all balances and account info
     const fetchBalances = useCallback(async () => {

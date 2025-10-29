@@ -48,6 +48,12 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'api.phantom.app',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'solana-launchpad-assets.s3.ap-south-1.amazonaws.com',
         port: '',
         pathname: '/**',
