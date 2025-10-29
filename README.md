@@ -297,12 +297,26 @@ npm run lint
 
 ## 📱 Demo Videos
 
-*Note: Add your demo video files here. You can:*
-- Upload videos to YouTube/Vimeo and link them
-- Store videos in a `demos/` folder and reference them
-- Use GitHub's video embedding feature
+### Web Demo
 
-**Web Demo**: [Link to web demo video]
+Watch the complete walkthrough of the web application demonstrating staking and unstaking functionality:
+
+<div align="center">
+
+[![Watch the Web Demo](https://img.shields.io/badge/▶️-Watch%20Web%20Demo-FF6B6B?style=for-the-badge&logo=youtube&logoColor=white)](https://drive.google.com/file/d/1lPVyVpoGuPeMGFAcVfTYx3-SCOBnZc6V/view?usp=sharing)
+
+</div>
+
+**📺 [View Web Demo on Google Drive](https://drive.google.com/file/d/1lPVyVpoGuPeMGFAcVfTYx3-SCOBnZc6V/view?usp=sharing)**
+
+*This demo covers:*
+- Wallet connection process
+- Staking SOL to receive SamSOL tokens
+- Unstaking SamSOL to withdraw SOL
+- Real-time transaction status updates
+
+### Mobile Demo
+
 **Mobile Demo**: [Link to mobile demo video]
 
 ## 🤝 Contributing
