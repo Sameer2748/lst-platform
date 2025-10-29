@@ -53,7 +53,7 @@ const StakeComponent = () => {
     "confirmed"
   ), []);
 
-  const samsolImageUrl = "https://solana-launchpad-assets.s3.ap-south-1.amazonaws.com/uploads/1754915233501-mengyu-xu-2yUG4ZLz8Ck.jpg";
+  const samsolImageUrl = "https://api.phantom.app/image-proxy/?image=https%3A%2F%2Fsolana-launchpad-assets.s3.ap-south-1.amazonaws.com%2Fuploads%2F1759036260063-avatar.png&anim=false&fit=cover&width=256&height=256";
   const solImageUrl = "https://imgs.search.brave.com/R0Co0bsNhdyEjIgBD4lTffUBuxL7PGFDf14_979lQlk/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9pbWFn/ZXMuc2Vla2xvZ28u/Y29tL2xvZ28tcG5n/LzY0LzMvc29sYW5h/LWxvZ28tcG5nX3Nl/ZWtsb2dvLTY0MDI2/Ni5wbmc";
 
   // Fetch all balances and account info - OPTIMIZED with parallel fetching
